@@ -1,0 +1,22 @@
+{
+  "name": "uranus.editor",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {},
+  "scripts": {
+    "build-loader": "tsc -p ./src/loader/",
+    "build-scripts": "tsc -p ./src/scripts/",
+    "watch-scripts": "concurrently \"cd ./dist && pic-serve\" \"start chrome https://playcanvas.com/editor/scene/951526\" \"tsc -w -p ./src/scripts/\" ",
+    "build-editor": "webpack --config ./src/sdk/webpack.production.config.js",
+    "watch-editor": "concurrently \"cd ./dist && pic-serve\" \"start chrome https://playcanvas.com/editor/scene/951526\" \"webpack --watch --config ./src/sdk/webpack.config.js\" ",
+    "build-all": "npm run build-loader && npm run build-scripts && npm run build-editor"
+  },
+  "devDependencies": {
+    "concurrently": "^5.2.0",
+    "ts-loader": "^8.0.0",
+    "typescript": "^3.9.6",
+    "webpack": "^4.43.0",
+    "webpack-cli": "^3.3.12"
+  },
+  "description": "A Playcanvas editor scripting solution"
+}

@@ -6,9 +6,11 @@
   "scripts": {
     "build-loader": "tsc -p ./src/loader/",
     "build-scripts": "tsc -p ./src/scripts/",
-    "watch-scripts": "concurrently \"cd ./dist && pic-serve\" \"start chrome https://playcanvas.com/editor/scene/951526\" \"tsc -w -p ./src/scripts/\" ",
+    "watch-scripts": "tsc -w -p ./src/scripts/",
+    "watch-scripts-all": "concurrently \"cd ./dist && pic-serve\" \"start chrome https://playcanvas.com/editor/scene/951526\" \"tsc -w -p ./src/scripts/\" ",
     "build-editor": "webpack --config ./src/sdk/webpack.production.config.js",
-    "watch-editor": "concurrently \"cd ./dist && pic-serve\" \"start chrome https://playcanvas.com/editor/scene/951526\" \"webpack --watch --config ./src/sdk/webpack.config.js\" ",
+    "watch-editor": "webpack --watch --config ./src/sdk/webpack.config.js",
+    "watch-editor-all": "concurrently \"cd ./dist && pic-serve\" \"start chrome https://playcanvas.com/editor/scene/951526\" \"webpack --watch --config ./src/sdk/webpack.config.js\" ",
     "build-all": "npm run build-loader && npm run build-scripts && npm run build-editor"
   },
   "devDependencies": {

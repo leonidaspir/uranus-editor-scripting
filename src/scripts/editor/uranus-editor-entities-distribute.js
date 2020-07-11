@@ -104,6 +104,12 @@ UranusEditorEntitiesDistribute.attributes.add("brushScale", {
     "If a dense radius is provided use scale min/max to add a random scale factor to each spawned instance.",
 });
 
+UranusEditorEntitiesDistribute.attributes.add("runBatcher", {
+  type: "boolean",
+  default: true,
+  title: "Run Batcher",
+});
+
 // this is an editor only script
 UranusEditorEntitiesDistribute.prototype.editorInitialize = function () {
   if (!this.inEditor) return;
@@ -124,6 +130,7 @@ UranusEditorEntitiesDistribute.prototype.initiate = function () {
   this.vec2 = new pc.Vec3();
   this.vec3 = new pc.Vec3();
   this.nodes = undefined;
+  this.batchGroups = undefined;
 
   this.running = true;
 
@@ -138,6 +145,15 @@ UranusEditorEntitiesDistribute.prototype.initiate = function () {
         this.spawnInstances(instances);
 
         this.running = false;
+
+        // --- manually run the batcher in editor to increase performance
+        if (this.runBatcher === true) {
+          this.batchGroups = Uranus.Editor.runBatcher(
+            this.nodes.map((node) => {
+              return node.entity;
+            })
+          );
+        }
       }.bind(this)
     );
   }
@@ -154,6 +170,23 @@ UranusEditorEntitiesDistribute.prototype.onDestroy = function () {
 
     this.nodes = undefined;
   }
+
+  this.clearBatches();
+};
+
+UranusEditorEntitiesDistribute.prototype.clearBatches = function () {
+  if (this.batchGroups) {
+    // --- clear batched entities
+    var batchList = this.app.batcher._batchList;
+
+    for (var i = 0; i < batchList.length; i++) {
+      if (this.batchGroups.indexOf(batchList[i].batchGroupId) > -1) {
+        this.app.batcher.destroy(batchList[i]);
+      }
+    }
+  }
+
+  this.batchGroups = undefined;
 };
 
 UranusEditorEntitiesDistribute.prototype.prepareMap = function () {
@@ -367,7 +400,7 @@ UranusEditorEntitiesDistribute.prototype.spawnInstances = function (instances) {
   );
 
   console.log(
-    "Spawned for " + this.entity.name + " " + instances.length + " instances."
+    "Spawned " + this.entity.name + " " + instances.length + " instances."
   );
 };
 
@@ -465,6 +498,8 @@ UranusEditorEntitiesDistribute.prototype.bakeInstancesInEditor = function () {
   });
 
   this.nodes = undefined;
+
+  this.clearBatches();
 };
 
 UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (

@@ -2,6 +2,7 @@ import * as Modules from "./modules";
 import * as Assets from "./assets";
 import * as Scripts from "./scripts";
 import * as Entities from "./entities";
+import * as Systems from "./systems";
 
 declare var editor: any;
 
@@ -25,6 +26,8 @@ export default class Editor {
   );
 
   public duplicateEntity = Entities.duplicateEntity.bind(this);
+
+  public runBatcher = Systems.runBatcher.bind(this);
 
   constructor() {
     this.app = editor ? editor.call("viewport:app") : undefined;

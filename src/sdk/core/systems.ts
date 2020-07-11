@@ -21,17 +21,18 @@ export function runBatcher(this: Editor, entities: pc.Entity[]) {
   if (!entities) return;
 
   entities.forEach((entity) => {
-    const modelComp: pc.ModelComponent = entity.model;
+    const modelComps: any = entity.findComponents("model");
 
-    if (entity.parent && modelComp && modelComp.batchGroupId > -1) {
-      // @ts-ignore
-      this.app.batcher.insert("model", modelComp.batchGroupId, entity);
+    modelComps.forEach((modelComp: pc.ModelComponent) => {
+      if (entity.parent && modelComp && modelComp.batchGroupId > -1) {
+        // @ts-ignore
+        this.app.batcher.insert("model", modelComp.batchGroupId, entity);
 
-      if (groupsToGenerate.indexOf(modelComp.batchGroupId) === -1) {
-        groupsToGenerate.push(modelComp.batchGroupId);
+        if (groupsToGenerate.indexOf(modelComp.batchGroupId) === -1) {
+          groupsToGenerate.push(modelComp.batchGroupId);
+        }
       }
-    }
-    return false;
+    });
   });
 
   console.time("Uranus.Editor: running batcher");

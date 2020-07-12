@@ -42,6 +42,10 @@ UranusTerrainSplatmaps.attributes.add("textureChannel3", {
   description:
     "Reference a material containing diffuse and optionally a normal and/or heightmap for the given channel.",
 });
+UranusTerrainSplatmaps.attributes.add("useAlpha", {
+  type: "boolean",
+  default: true,
+});
 UranusTerrainSplatmaps.attributes.add("tiling", {
   type: "number",
   default: 1,
@@ -69,7 +73,7 @@ UranusTerrainSplatmaps.prototype.render = function () {
 
   this.material = material;
 
-  material.chunks.diffusePS = this.getSplatmapDiffuseShader();
+  material.chunks.diffusePS = this.getSplatmapDiffuseShader(this.useAlpha);
 
   material.update();
 
@@ -91,15 +95,19 @@ UranusTerrainSplatmaps.prototype.updateUniforms = function () {
     "texture_channel2",
     this.textureChannel2.resource.diffuseMap
   );
-  this.material.setParameter(
-    "texture_channel3",
-    this.textureChannel3.resource.diffuseMap
-  );
+  if (this.useAlpha) {
+    this.material.setParameter(
+      "texture_channel3",
+      this.textureChannel3.resource.diffuseMap
+    );
+  }
 
   this.material.setParameter("tile", this.tiling);
 };
 
-UranusTerrainSplatmaps.prototype.getSplatmapDiffuseShader = function () {
+UranusTerrainSplatmaps.prototype.getSplatmapDiffuseShader = function (
+  useAlpha
+) {
   return (
     "   uniform sampler2D texture_colorMap;" +
     "   uniform float tile;" +
@@ -112,8 +120,12 @@ UranusTerrainSplatmaps.prototype.getSplatmapDiffuseShader = function () {
     "       vec3 texel0 = texture2D(texture_channel0, vUv0 * tile).rgb;" +
     "       vec3 texel1 = texture2D(texture_channel1, vUv0 * tile).rgb;" +
     "       vec3 texel2 = texture2D(texture_channel2, vUv0 * tile).rgb;" +
-    "       vec3 texel3 = texture2D(texture_channel3, vUv0 * tile).rgb;" +
-    "       dAlbedo = gammaCorrectInput(colormap.r * texel0 + colormap.g * texel1 + colormap.b * texel2 + colormap.a * texel3);" +
+    (useAlpha
+      ? "       vec3 texel3 = texture2D(texture_channel3, vUv0 * tile).rgb;"
+      : "") +
+    "       dAlbedo = gammaCorrectInput(colormap.r * texel0 + colormap.g * texel1 + colormap.b * texel2 " +
+    (useAlpha ? "+ colormap.a * texel3" : "") +
+    ");" +
     "  }"
   );
 };

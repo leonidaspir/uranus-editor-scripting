@@ -195,6 +195,14 @@ UranusEditorEntitiesDistribute.prototype.onDestroy = function () {
 
 UranusEditorEntitiesDistribute.prototype.clearBatches = function () {
   if (this.batchGroups) {
+    // --- enable entity model component
+    var modelComps = this.entity.findComponents("model");
+    modelComps.forEach((model) => {
+      if (model.batchGroupId > -1) {
+        model.addModelToLayers();
+      }
+    });
+
     // --- clear batched entities
     var batchList = this.app.batcher._batchList;
 
@@ -472,12 +480,33 @@ UranusEditorEntitiesDistribute.prototype.editorScriptPanelRender = function (
   containerEl.append(btnAdd.element);
 
   // --- clear button for removing all entity children
-  var btnClear = new ui.Button({
+  var btnClearInstances = new ui.Button({
     text: "- Clear Instances",
   });
 
-  btnClear.on("click", this.clearEditorInstances.bind(this));
-  containerEl.append(btnClear.element);
+  btnClearInstances.on("click", this.clearEditorInstances.bind(this));
+  containerEl.append(btnClearInstances.element);
+
+  // --- run the batcher button
+  var btnRunBatcher = new ui.Button({
+    text: "+ Run Batcher",
+  });
+
+  btnRunBatcher.on(
+    "click",
+    function () {
+      this.batchGroups = Uranus.Editor.runBatcher(this.entity.children);
+    }.bind(this)
+  );
+  containerEl.append(btnRunBatcher.element);
+
+  // --- clear button for removing batches
+  var btnClearBatches = new ui.Button({
+    text: "- Clear Batches",
+  });
+
+  btnClearBatches.on("click", this.clearBatches.bind(this));
+  containerEl.append(btnClearBatches.element);
 };
 
 UranusEditorEntitiesDistribute.prototype.bakeInstancesInEditor = function () {

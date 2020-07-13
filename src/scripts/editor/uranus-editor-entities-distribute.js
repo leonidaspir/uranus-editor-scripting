@@ -117,15 +117,24 @@ UranusEditorEntitiesDistribute.attributes.add("runBatcher", {
 });
 
 // this is an editor only script
-UranusEditorEntitiesDistribute.prototype.editorInitialize = function () {
+UranusEditorEntitiesDistribute.prototype.editorInitialize = function (
+  manualRun
+) {
   if (!this.inEditor) return;
 
   this.running = false;
 
-  if (this.onEvent) {
-    this.app.once(this.onEvent, this.initiate, this);
+  // --- check if we already have children, so don't automatically run again
+  if (this.entity.children.length > 0) {
+    if (this.runBatcher === true) {
+      this.batchGroups = Uranus.Editor.runBatcher(this.entity.children);
+    }
   } else {
-    this.initiate();
+    if (!manualRun && this.onEvent) {
+      this.app.once(this.onEvent, this.initiate, this);
+    } else {
+      this.initiate();
+    }
   }
 };
 
@@ -548,6 +557,6 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (
   this.onDestroy();
 
   if (this.inEditor === true) {
-    this.initiate();
+    this.editorInitialize(true);
   }
 };

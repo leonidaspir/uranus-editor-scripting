@@ -17,6 +17,8 @@ export async function batchExecuteScripts(this: Editor) {
   const entities = editor.call("entities:list");
   const scriptInstances: any = {};
 
+  console.log("--- Uranus.Editor starting script execution");
+
   for (const item of entities) {
     const scripts = item.get("components.script.scripts");
 
@@ -46,6 +48,10 @@ export async function batchExecuteScripts(this: Editor) {
 
       this.prepareEditorScriptAttributes(instance);
       instance.enabled = inEditor;
+
+      console.log(
+        `--- Uranus.Editor added scriptType ${scriptType} on entity "${entity.name}"`
+      );
 
       if (typeof instance["editorInitialize"] === "function") {
         instance["editorInitialize"]();

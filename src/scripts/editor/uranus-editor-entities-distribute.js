@@ -36,6 +36,12 @@ UranusEditorEntitiesDistribute.attributes.add("terrainDepth", {
   title: "Terrain Depth",
 });
 
+UranusEditorEntitiesDistribute.attributes.add("minHeight", {
+  type: "number",
+  default: 0,
+  title: "Min Height",
+});
+
 UranusEditorEntitiesDistribute.attributes.add("bank", {
   type: "entity",
   title: "Bank",
@@ -140,22 +146,26 @@ UranusEditorEntitiesDistribute.prototype.initiate = function () {
     this.canvas = document.createElement("canvas");
     this.context = this.canvas.getContext("2d");
 
-    this.prepareMap().then(
-      function (instances) {
-        this.spawnInstances(instances);
+    this.prepareMap()
+      .then(
+        function (instances) {
+          this.spawnInstances(instances);
 
+          this.running = false;
+
+          // --- manually run the batcher in editor to increase performance
+          if (this.runBatcher === true) {
+            this.batchGroups = Uranus.Editor.runBatcher(
+              this.nodes.map((node) => {
+                return node.entity;
+              })
+            );
+          }
+        }.bind(this)
+      )
+      .catch(function () {
         this.running = false;
-
-        // --- manually run the batcher in editor to increase performance
-        if (this.runBatcher === true) {
-          this.batchGroups = Uranus.Editor.runBatcher(
-            this.nodes.map((node) => {
-              return node.entity;
-            })
-          );
-        }
-      }.bind(this)
-    );
+      });
   }
 
   // --- events
@@ -248,49 +258,50 @@ UranusEditorEntitiesDistribute.prototype.prepareMap = function () {
           // --- and assemble instances from terrain positions buffer
           var instances = [];
 
-          points.forEach(
-            function (point, index) {
-              var x = point[0];
-              var z = point[1];
+          for (let i = 0; i < points.length; i++) {
+            const point = points[i];
 
-              // --- get height at point
-              this.vec2.set(x, 10000, z);
-              this.vec3.set(x, -10000, z);
+            var x = point[0];
+            var z = point[1];
 
-              var result = this.app.systems.rigidbody.raycastFirst(
-                this.vec2,
-                this.vec3
+            // --- get height at point
+            this.vec2.set(x, 10000, z);
+            this.vec3.set(x, -10000, z);
+
+            var result = this.app.systems.rigidbody.raycastFirst(
+              this.vec2,
+              this.vec3
+            );
+            if (!result) continue;
+
+            var height = result.point.y;
+
+            if (height >= this.minHeight) {
+              var bank = this.bank.children;
+              var bankIndex = Math.floor(Math.random() * bank.length);
+
+              // --- random rotation
+              this.vec.set(0, 0, 0);
+              this.setRandomRotation(this.vec, this.brushAngle);
+
+              // --- random scale
+              var newScaleFactor = pc.math.random(
+                this.brushScale.x,
+                this.brushScale.y
               );
 
-              if (result) {
-                var height = result.point.y;
-                var bank = this.bank.children;
-                var bankIndex = Math.floor(Math.random() * bank.length);
-                var bankItem = bank[bankIndex];
-
-                // --- random rotation
-                this.vec.set(0, 0, 0);
-                this.setRandomRotation(this.vec, this.brushAngle);
-
-                // --- random scale
-                var newScaleFactor = pc.math.random(
-                  this.brushScale.x,
-                  this.brushScale.y
-                );
-
-                instances.push([
-                  bankIndex,
-                  x,
-                  height,
-                  z,
-                  this.vec.x,
-                  this.vec.y,
-                  this.vec.z,
-                  newScaleFactor,
-                ]);
-              }
-            }.bind(this)
-          );
+              instances.push([
+                bankIndex,
+                x,
+                height,
+                z,
+                this.vec.x,
+                this.vec.y,
+                this.vec.z,
+                newScaleFactor,
+              ]);
+            }
+          }
 
           resolve(instances);
         }.bind(this)
@@ -443,14 +454,21 @@ UranusEditorEntitiesDistribute.prototype.editorScriptPanelRender = function (
 ) {
   var containerEl = element.firstChild;
 
-  // --- add a button to bake the instances as editor items
+  // --- bake button the instances as editor items
   var btnAdd = new ui.Button({
     text: "+ Bake Instances",
   });
-  btnAdd.class.add("add");
 
   btnAdd.on("click", this.bakeInstancesInEditor.bind(this));
   containerEl.append(btnAdd.element);
+
+  // --- clear button for removing all entity children
+  var btnClear = new ui.Button({
+    text: "- Clear Instances",
+  });
+
+  btnClear.on("click", this.clearEditorInstances.bind(this));
+  containerEl.append(btnClear.element);
 };
 
 UranusEditorEntitiesDistribute.prototype.bakeInstancesInEditor = function () {
@@ -500,6 +518,25 @@ UranusEditorEntitiesDistribute.prototype.bakeInstancesInEditor = function () {
   this.nodes = undefined;
 
   this.clearBatches();
+};
+
+UranusEditorEntitiesDistribute.prototype.clearEditorInstances = function () {
+  var items = editor.call("selector:items");
+
+  if (!items || items.length === 0) {
+    return false;
+  }
+
+  // --- parent item to add new items
+  var parentItem = items[0];
+
+  parentItem.get("children").forEach(function (guid) {
+    var item = editor.call("entities:get", guid);
+
+    if (item) {
+      editor.call("entities:removeEntity", item);
+    }
+  });
 };
 
 UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (

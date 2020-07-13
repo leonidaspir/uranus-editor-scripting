@@ -1567,6 +1567,11 @@ UranusEditorEntitiesDistribute.attributes.add("terrainDepth", {
     default: 100,
     title: "Terrain Depth",
 });
+UranusEditorEntitiesDistribute.attributes.add("minHeight", {
+    type: "number",
+    default: 0,
+    title: "Min Height",
+});
 UranusEditorEntitiesDistribute.attributes.add("bank", {
     type: "entity",
     title: "Bank",
@@ -1651,7 +1656,8 @@ UranusEditorEntitiesDistribute.prototype.initiate = function () {
         // --- variables
         this.canvas = document.createElement("canvas");
         this.context = this.canvas.getContext("2d");
-        this.prepareMap().then(function (instances) {
+        this.prepareMap()
+            .then(function (instances) {
             this.spawnInstances(instances);
             this.running = false;
             // --- manually run the batcher in editor to increase performance
@@ -1660,7 +1666,10 @@ UranusEditorEntitiesDistribute.prototype.initiate = function () {
                     return node.entity;
                 }));
             }
-        }.bind(this));
+        }.bind(this))
+            .catch(function () {
+            this.running = false;
+        });
     }
     // --- events
     this.on("destroy", this.onDestroy, this);
@@ -1722,18 +1731,20 @@ UranusEditorEntitiesDistribute.prototype.prepareMap = function () {
             }
             // --- and assemble instances from terrain positions buffer
             var instances = [];
-            points.forEach(function (point, index) {
+            for (var i_1 = 0; i_1 < points.length; i_1++) {
+                var point = points[i_1];
                 var x = point[0];
                 var z = point[1];
                 // --- get height at point
                 this.vec2.set(x, 10000, z);
                 this.vec3.set(x, -10000, z);
                 var result = this.app.systems.rigidbody.raycastFirst(this.vec2, this.vec3);
-                if (result) {
-                    var height = result.point.y;
+                if (!result)
+                    continue;
+                var height = result.point.y;
+                if (height >= this.minHeight) {
                     var bank = this.bank.children;
                     var bankIndex = Math.floor(Math.random() * bank.length);
-                    var bankItem = bank[bankIndex];
                     // --- random rotation
                     this.vec.set(0, 0, 0);
                     this.setRandomRotation(this.vec, this.brushAngle);
@@ -1750,7 +1761,7 @@ UranusEditorEntitiesDistribute.prototype.prepareMap = function () {
                         newScaleFactor,
                     ]);
                 }
-            }.bind(this));
+            }
             resolve(instances);
         }.bind(this));
     }.bind(this));
@@ -1852,13 +1863,18 @@ UranusEditorEntitiesDistribute.prototype.setRandomRotation = function (vec, axis
 // --- editor script methods
 UranusEditorEntitiesDistribute.prototype.editorScriptPanelRender = function (element) {
     var containerEl = element.firstChild;
-    // --- add a button to bake the instances as editor items
+    // --- bake button the instances as editor items
     var btnAdd = new ui.Button({
         text: "+ Bake Instances",
     });
-    btnAdd.class.add("add");
     btnAdd.on("click", this.bakeInstancesInEditor.bind(this));
     containerEl.append(btnAdd.element);
+    // --- clear button for removing all entity children
+    var btnClear = new ui.Button({
+        text: "- Clear Instances",
+    });
+    btnClear.on("click", this.clearEditorInstances.bind(this));
+    containerEl.append(btnClear.element);
 };
 UranusEditorEntitiesDistribute.prototype.bakeInstancesInEditor = function () {
     if (!this.nodes || this.nodes.length === 0) {
@@ -1895,6 +1911,20 @@ UranusEditorEntitiesDistribute.prototype.bakeInstancesInEditor = function () {
     });
     this.nodes = undefined;
     this.clearBatches();
+};
+UranusEditorEntitiesDistribute.prototype.clearEditorInstances = function () {
+    var items = editor.call("selector:items");
+    if (!items || items.length === 0) {
+        return false;
+    }
+    // --- parent item to add new items
+    var parentItem = items[0];
+    parentItem.get("children").forEach(function (guid) {
+        var item = editor.call("entities:get", guid);
+        if (item) {
+            editor.call("entities:removeEntity", item);
+        }
+    });
 };
 UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, value) {
     if (this.running === true)

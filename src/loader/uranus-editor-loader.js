@@ -1,6 +1,6 @@
-editor.on("scene:load", function () {
-  window.setTimeout(bootUranusEditor, 750);
-});
+// editor.on("scene:load", function () {
+//   window.setTimeout(bootUranusEditor, 750);
+// });
 
 const loadScriptAsync = function (url) {
   return new Promise((resolve) => {
@@ -44,3 +44,5 @@ const startUranusEditor = function () {
     });
   }
 };
+
+bootUranusEditor();

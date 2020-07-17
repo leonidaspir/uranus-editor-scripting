@@ -35,9 +35,9 @@ export function runBatcher(this: Editor, entities: pc.Entity[]) {
     });
   });
 
-  console.time("--- Uranus.Editor running batcher");
+  console.time("Uranus.Editor running batcher");
   this.app.batcher.generate(groupsToGenerate);
-  console.timeEnd("--- Uranus.Editor running batcher");
+  console.timeEnd("Uranus.Editor running batcher");
 
   return groupsToGenerate;
 }

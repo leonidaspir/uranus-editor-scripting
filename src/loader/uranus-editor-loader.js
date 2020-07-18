@@ -1,7 +1,4 @@
-// editor.on("scene:load", function () {
-//   window.setTimeout(bootUranusEditor, 750);
-// });
-
+// --- sample loader script to be used without the Uranus Extension
 const loadScriptAsync = function (url) {
   return new Promise((resolve) => {
     var tag = document.createElement("script");
@@ -44,5 +41,9 @@ const startUranusEditor = function () {
     });
   }
 };
+
+// editor.on("scene:load", function () {
+//   window.setTimeout(bootUranusEditor, 750);
+// });
 
 bootUranusEditor();

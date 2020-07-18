@@ -1,0 +1,32 @@
+{
+  "description": "Uranus Games for Playcanvas",
+  "homepage_url": "https://uranus.games",
+  "manifest_version": 2,
+  "name": "uranus.games",
+  "version": "1.0",
+  "permissions": ["background", "storage", "https://playcanvas.com/editor/*"],
+  "icons": {
+    "16": "icons/on-16.png",
+    "32": "icons/on-32.png"
+  },
+  "browser_action": {
+    "default_icon": {
+      "32": "icons/on-32.png"
+    }
+  },
+  "web_accessible_resources": [
+    "icons/on-32.png",
+    "icons/off-32.png",
+    "dist/editor.js"
+  ],
+  "background": {
+    "scripts": ["dist/background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://playcanvas.com/editor/*"],
+      "js": ["dist/broadcaster.js"],
+      "run_at": "document_end"
+    }
+  ]
+}

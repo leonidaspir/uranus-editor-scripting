@@ -4,10 +4,13 @@ import * as Scripts from "./scripts";
 import * as Entities from "./entities";
 import * as Systems from "./systems";
 
+import Interface from "../interface";
+
 declare var editor: any;
 
 export default class Editor {
   public app: pc.Application;
+  private interface: Interface;
 
   private appRunning: boolean;
 
@@ -31,11 +34,14 @@ export default class Editor {
 
   constructor() {
     this.app = editor ? editor.call("viewport:app") : undefined;
+    this.interface = new Interface();
 
     // @ts-ignore
     window.Uranus = {
       Editor: this,
     };
+
+    this.interface.boot();
   }
 
   static inEditor() {
@@ -55,6 +61,19 @@ export default class Editor {
     }
 
     this.appRunning = startImmediately;
+
+    this.interface.addRunUpdateButton(
+      "Update Running",
+      "checkbox",
+      this.appRunning,
+      (state: boolean) => {
+        this.appRunning = state;
+
+        if (state === true) {
+          tick();
+        }
+      }
+    );
 
     // --- Make pc.Application update
     const update = (dt: number) => {

@@ -1638,7 +1638,7 @@ UranusEditorEntitiesDistribute.prototype.editorInitialize = function (manualRun)
     // --- check if we already have children, so don't automatically run again
     if (this.entity.children.length > 0) {
         if (this.runBatcher === true) {
-            this.batchGroups = Uranus.Editor.runBatcher(this.entity.children);
+            this.executeBatcher();
         }
     }
     else {
@@ -1670,9 +1670,7 @@ UranusEditorEntitiesDistribute.prototype.initiate = function () {
             this.running = false;
             // --- manually run the batcher in editor to increase performance
             if (this.runBatcher === true) {
-                this.batchGroups = Uranus.Editor.runBatcher(this.nodes.map(function (node) {
-                    return node.entity;
-                }));
+                this.executeBatcher();
             }
         }.bind(this))
             .catch(function () {
@@ -1690,25 +1688,6 @@ UranusEditorEntitiesDistribute.prototype.onDestroy = function () {
         this.nodes = undefined;
     }
     this.clearBatches();
-};
-UranusEditorEntitiesDistribute.prototype.clearBatches = function () {
-    if (this.batchGroups) {
-        // --- enable entity model component
-        var modelComps = this.entity.findComponents("model");
-        modelComps.forEach(function (model) {
-            if (model.batchGroupId > -1) {
-                model.addModelToLayers();
-            }
-        });
-        // --- clear batched entities
-        var batchList = this.app.batcher._batchList;
-        for (var i = 0; i < batchList.length; i++) {
-            if (this.batchGroups.indexOf(batchList[i].batchGroupId) > -1) {
-                this.app.batcher.destroy(batchList[i]);
-            }
-        }
-    }
-    this.batchGroups = undefined;
 };
 UranusEditorEntitiesDistribute.prototype.prepareMap = function () {
     return new Promise(function (resolve, reject) {
@@ -1890,20 +1869,33 @@ UranusEditorEntitiesDistribute.prototype.editorScriptPanelRender = function (ele
     });
     btnClearInstances.on("click", this.clearEditorInstances.bind(this));
     containerEl.append(btnClearInstances.element);
-    // --- run the batcher button
-    var btnRunBatcher = new ui.Button({
-        text: "+ Run Batcher",
-    });
-    btnRunBatcher.on("click", function () {
+};
+UranusEditorEntitiesDistribute.prototype.executeBatcher = function () {
+    if (this.runBatcher === true) {
         this.batchGroups = Uranus.Editor.runBatcher(this.entity.children);
-    }.bind(this));
-    containerEl.append(btnRunBatcher.element);
-    // --- clear button for removing batches
-    var btnClearBatches = new ui.Button({
-        text: "- Clear Batches",
-    });
-    btnClearBatches.on("click", this.clearBatches.bind(this));
-    containerEl.append(btnClearBatches.element);
+    }
+    else {
+        this.clearBatches();
+    }
+};
+UranusEditorEntitiesDistribute.prototype.clearBatches = function () {
+    if (this.batchGroups) {
+        // --- enable entity model component
+        var modelComps = this.entity.findComponents("model");
+        modelComps.forEach(function (model) {
+            if (model.batchGroupId > -1) {
+                model.addModelToLayers();
+            }
+        });
+        // --- clear batched entities
+        var batchList = this.app.batcher._batchList;
+        for (var i = 0; i < batchList.length; i++) {
+            if (this.batchGroups.indexOf(batchList[i].batchGroupId) > -1) {
+                this.app.batcher.destroy(batchList[i]);
+            }
+        }
+    }
+    this.batchGroups = undefined;
 };
 UranusEditorEntitiesDistribute.prototype.bakeInstancesInEditor = function () {
     if (!this.nodes || this.nodes.length === 0) {
@@ -1939,7 +1931,10 @@ UranusEditorEntitiesDistribute.prototype.bakeInstancesInEditor = function () {
         entity.destroy();
     });
     this.nodes = undefined;
+    // --- first we clear any batches on the internal entities
     this.clearBatches();
+    // --- then we execute the batcher once more for the new entities
+    this.executeBatcher();
 };
 UranusEditorEntitiesDistribute.prototype.clearEditorInstances = function () {
     var items = editor.call("selector:items");
@@ -1958,6 +1953,10 @@ UranusEditorEntitiesDistribute.prototype.clearEditorInstances = function () {
 UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, value) {
     if (this.running === true)
         return;
+    if (property === "runBatcher") {
+        this.executeBatcher();
+        return;
+    }
     this.onDestroy();
     if (this.inEditor === true) {
         this.editorInitialize(true);

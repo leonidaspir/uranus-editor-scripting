@@ -16,6 +16,6 @@ module.exports = {
   },
   output: {
     filename: "uranus-editor-sdk.js",
-    path: path.resolve(__dirname, "../../dist"),
+    path: path.resolve(__dirname, "../../dist/sdk/"),
   },
 };

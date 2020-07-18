@@ -14,7 +14,7 @@ UranusEditorEntitiesDistribute.attributes.add("inEditor", {
 UranusEditorEntitiesDistribute.attributes.add("distributeMap", {
   type: "asset",
   assetType: "texture",
-  title: "Distribute Map",
+  title: "Distribution Map",
 });
 
 UranusEditorEntitiesDistribute.attributes.add("terrainChannel", {

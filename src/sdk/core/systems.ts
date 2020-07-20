@@ -2,6 +2,23 @@ import Editor from "./main";
 
 declare var editor: any;
 
+export function editorPickerState(this: Editor, state: boolean) {
+  // --- we do this hack since the original editor method for disabling picking doesn't seem reliable
+  // --- viewport:pick:state
+  // @ts-ignore
+  if (!this.pickerRef) {
+    // @ts-ignore
+    this.pickerRef = editor._hooks["viewport:pick"];
+  }
+
+  if (state) {
+    // @ts-ignore
+    editor._hooks["viewport:pick"] = this.pickerRef;
+  } else {
+    editor._hooks["viewport:pick"] = function () {};
+  }
+}
+
 export function runBatcher(this: Editor, entities: pc.Entity[]) {
   const batchGroups = editor.call("settings:project").get("batchGroups");
 

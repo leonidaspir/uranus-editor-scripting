@@ -29,7 +29,9 @@ export default class Editor {
   );
 
   public duplicateEntity = Entities.duplicateEntity.bind(this);
+  public duplicateEntities = Entities.duplicateEntities.bind(this);
 
+  public editorPickerState = Systems.editorPickerState.bind(this);
   public runBatcher = Systems.runBatcher.bind(this);
 
   constructor() {

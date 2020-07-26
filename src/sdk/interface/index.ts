@@ -2,7 +2,7 @@ import Styles from "./styles";
 
 export default class Interface {
   private toolbar: HTMLElement;
-  private content: HTMLElement;
+  private messages: HTMLElement;
 
   constructor() {}
 
@@ -46,11 +46,32 @@ export default class Interface {
       }
     };
 
+    // Attach a message container element
+    this.addMessagesOutput();
+
     // Attach on DOM
     toolbarBank.after(this.toolbar);
 
     // --- append new styles to DOM
     this.addStyles(Styles.getOverrides());
+  }
+
+  addMessagesOutput() {
+    this.messages = document.createElement("div");
+    this.messages.classList.add("uranus-messages");
+
+    this.toolbar.appendChild(this.messages);
+  }
+
+  logMessage(message: string) {
+    const item = document.createElement("div");
+    item.innerHTML = message;
+
+    this.messages.appendChild(item);
+
+    window.setTimeout(() => {
+      item.remove();
+    }, 3000);
   }
 
   addRunUpdateButton(

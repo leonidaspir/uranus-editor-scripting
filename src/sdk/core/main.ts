@@ -10,7 +10,7 @@ declare var editor: any;
 
 export default class Editor {
   public app: pc.Application;
-  private interface: Interface;
+  public interface: Interface;
 
   private appRunning: boolean;
 
@@ -126,5 +126,7 @@ export default class Editor {
     };
 
     tick();
+
+    this.interface.logMessage("Started pc.App update loop");
   }
 }

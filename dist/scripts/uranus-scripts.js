@@ -1775,6 +1775,9 @@ UranusEditorBlockBuilder.prototype.spawnEntityInCell = function () {
     newItem.set("rotation", [angles.x, angles.y, angles.z]);
     newItem.set("scale", [scale.x, scale.y, scale.z]);
     newItem.history.enabled = true;
+    Uranus.Editor.interface.logMessage('Block builder spawned child for <strong style="color: cyan;">' +
+        this.entity.name +
+        "</strong>");
 };
 // --- dependencies
 // UPNG.js

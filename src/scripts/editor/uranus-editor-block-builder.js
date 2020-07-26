@@ -309,4 +309,10 @@ UranusEditorBlockBuilder.prototype.spawnEntityInCell = function () {
   newItem.set("scale", [scale.x, scale.y, scale.z]);
 
   newItem.history.enabled = true;
+
+  Uranus.Editor.interface.logMessage(
+    'Block builder spawned child for <strong style="color: cyan;">' +
+      this.entity.name +
+      "</strong>"
+  );
 };

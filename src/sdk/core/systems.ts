@@ -52,9 +52,11 @@ export function runBatcher(this: Editor, entities: pc.Entity[]) {
     });
   });
 
-  console.time("Uranus.Editor running batcher");
+  const t0 = performance.now();
   this.app.batcher.generate(groupsToGenerate);
-  console.timeEnd("Uranus.Editor running batcher");
+  const t1 = performance.now();
+
+  this.interface.logMessage(`Batcher executed in ${(t1 - t0).toFixed(0)}ms`);
 
   return groupsToGenerate;
 }

@@ -18,6 +18,14 @@ export default class Styles {
             margin-top: 9px;
             line-height: 33px !important;
         }
+        .uranus-messages{
+            position: absolute;
+            top: 0px;
+            left: 110%;
+            width: max-content;
+            color: rgba(255,255,255,0.75);
+            text-shadow: 0px 0px 1px rgba(0,0,0,0.3);        
+        }
         `;
   }
 }

@@ -42,8 +42,8 @@ const startUranusEditor = function () {
   }
 };
 
-// editor.on("scene:load", function () {
-//   window.setTimeout(bootUranusEditor, 750);
+// editor.once("assets:load", function () {
+//   window.setTimeout(bootUranusEditor, 0);
 // });
 
 bootUranusEditor();

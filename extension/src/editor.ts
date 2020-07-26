@@ -1,7 +1,7 @@
 declare var editor: any;
 
 if (editor) {
-  editor.on("scene:load", function () {
+  editor.once("assets:load", function () {
     window.setTimeout(function () {
       const app = editor.call("viewport:app");
 
@@ -31,6 +31,6 @@ if (editor) {
           document.head.appendChild(script);
         });
       }
-    }, 1000);
+    }, 0);
   });
 }

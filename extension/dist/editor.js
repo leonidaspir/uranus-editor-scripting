@@ -35,7 +35,7 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     }
 };
 if (editor) {
-    editor.on("scene:load", function () {
+    editor.once("assets:load", function () {
         window.setTimeout(function () {
             var _this = this;
             var app = editor.call("viewport:app");
@@ -66,6 +66,6 @@ if (editor) {
                     });
                 }); });
             }
-        }, 1000);
+        }, 0);
     });
 }

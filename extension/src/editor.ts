@@ -31,6 +31,6 @@ if (editor) {
           document.head.appendChild(script);
         });
       }
-    }, 0);
+    }, 100);
   });
 }

@@ -1583,7 +1583,6 @@ UranusEditorBlockBuilder.attributes.add("brushDistance", {
     default: 15,
     title: "Brush Distance",
 });
-UranusEditorBlockBuilder.prototype.initialize = function () { };
 UranusEditorBlockBuilder.prototype.editorInitialize = function () {
     // --- variables
     this.buildButtonState = false;
@@ -1594,7 +1593,9 @@ UranusEditorBlockBuilder.prototype.editorInitialize = function () {
     this.lastCoord = new pc.Vec2();
     this.aabb = new pc.BoundingBox();
     this.brushEntity = undefined;
+    this.brushEntityOffset = new pc.Vec3();
     this.parentItem = undefined;
+    this.keyUpListener = undefined;
     // --- add custom CSS
     var sheet = window.document.styleSheets[0];
     sheet.insertRule(".active-block-builder-button { background-color: #f60 !important; color: white !important; }", sheet.cssRules.length);
@@ -1618,6 +1619,11 @@ UranusEditorBlockBuilder.prototype.editorAttrChange = function (property, value)
         return;
     if (property === "brushDistance") {
         this.updateSelectedCell();
+    }
+    if (property === "spawnEntity") {
+        this.removeBrushEntity();
+        this.addBrushEntity();
+        this.updateBrushEntity();
     }
 };
 UranusEditorBlockBuilder.prototype.setBuildingState = function (btnBuild) {
@@ -1659,12 +1665,17 @@ UranusEditorBlockBuilder.prototype.setInputState = function (state) {
     if (state === true) {
         this.app.mouse.on(pc.EVENT_MOUSEDOWN, this.onMouseDown, this);
         this.app.mouse.on(pc.EVENT_MOUSEMOVE, this.onMouseMove, this);
+        this.app.mouse.on(pc.EVENT_MOUSEWHEEL, this.onMouseWheel, this);
         this.app.mouse.on(pc.EVENT_MOUSEUP, this.onMouseUp, this);
+        this.keyUpListener = this.onKeyUp.bind(this);
+        window.addEventListener("keyup", this.keyUpListener, true);
     }
     else {
         this.app.mouse.off(pc.EVENT_MOUSEDOWN, this.onMouseDown, this);
         this.app.mouse.off(pc.EVENT_MOUSEMOVE, this.onMouseMove, this);
+        this.app.mouse.off(pc.EVENT_MOUSEWHEEL, this.onMouseWheel, this);
         this.app.mouse.off(pc.EVENT_MOUSEUP, this.onMouseUp, this);
+        window.removeEventListener("keyup", this.keyUpListener, true);
     }
 };
 UranusEditorBlockBuilder.prototype.onMouseDown = function (e) {
@@ -1677,7 +1688,27 @@ UranusEditorBlockBuilder.prototype.onMouseMove = function (e) {
     this.lastCoord.set(e.x, e.y);
     this.updateSelectedCell();
 };
+UranusEditorBlockBuilder.prototype.onKeyUp = function (e) {
+    switch (e.keyCode) {
+        case pc.KEY_R:
+            this.rotateBrushEntity();
+            break;
+    }
+};
 UranusEditorBlockBuilder.prototype.onMouseUp = function (e) {
+    if (e.altKey === true) {
+        // --- handle options keys
+        if (event.button === pc.MOUSEBUTTON_LEFT) {
+            this.brushDistance += this.gridSize.x;
+        }
+        else if (event.button === pc.MOUSEBUTTON_RIGHT) {
+            this.brushDistance -= this.gridSize.x;
+            if (this.brushDistance <= 0) {
+                this.brushDistance = this.gridSize.x;
+            }
+        }
+        return;
+    }
     // --- check if cursor has moved, that means the camera has moved
     // --- if that's the case we shouldn't be spawning
     if (this.startCoord.x !== this.lastCoord.x ||
@@ -1748,12 +1779,19 @@ UranusEditorBlockBuilder.prototype.addBrushEntity = function () {
         return;
     this.brushEntity = this.spawnEntity.clone();
     this.app.root.addChild(this.brushEntity);
+    this.brushEntityOffset.copy(this.spawnEntity.getLocalPosition());
     Uranus.Editor.setEntityModelOutline(this.brushEntity, true);
 };
 UranusEditorBlockBuilder.prototype.updateBrushEntity = function () {
     if (!this.brushEntity)
         return;
     this.brushEntity.setPosition(this.currentCell);
+    this.brushEntity.translate(this.brushEntityOffset);
+};
+UranusEditorBlockBuilder.prototype.rotateBrushEntity = function () {
+    if (!this.brushEntity)
+        return;
+    this.brushEntity.rotate(0, -45, 0);
 };
 UranusEditorBlockBuilder.prototype.removeBrushEntity = function () {
     if (!this.brushEntity)

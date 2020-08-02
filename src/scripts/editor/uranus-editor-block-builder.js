@@ -68,6 +68,8 @@ UranusEditorBlockBuilder.prototype.editorInitialize = function () {
   this.aabb = new pc.BoundingBox();
   this.brushEntity = undefined;
 
+  this.parentItem = undefined;
+
   // --- add custom CSS
   const sheet = window.document.styleSheets[0];
   sheet.insertRule(
@@ -127,6 +129,10 @@ UranusEditorBlockBuilder.prototype.startBuilding = function () {
   this.building = true;
 
   Uranus.Editor.editorPickerState(false);
+
+  // --- keep track of the parent holder item
+  var items = editor.call("selector:items");
+  this.parentItem = items[0];
 
   // --- enable input handlers
   this.setInputState(true);
@@ -259,11 +265,19 @@ UranusEditorBlockBuilder.prototype.updateSelectedCell = function () {
   this.updateBrushEntity();
 };
 
+UranusEditorBlockBuilder.prototype.getCellGuid = function () {
+  return (
+    this.currentCell.x + "_" + this.currentCell.y + "_" + this.currentCell.z
+  );
+};
+
 UranusEditorBlockBuilder.prototype.addBrushEntity = function () {
   if (this.brushEntity) return;
 
   this.brushEntity = this.spawnEntity.clone();
   this.app.root.addChild(this.brushEntity);
+
+  Uranus.Editor.setEntityModelOutline(this.brushEntity, true);
 };
 
 UranusEditorBlockBuilder.prototype.updateBrushEntity = function () {
@@ -276,13 +290,33 @@ UranusEditorBlockBuilder.prototype.removeBrushEntity = function () {
   if (!this.brushEntity) return;
 
   this.brushEntity.destroy();
+
+  Uranus.Editor.setEntityModelOutline(this.brushEntity, false);
+
   this.brushEntity = undefined;
 };
 
 UranusEditorBlockBuilder.prototype.spawnEntityInCell = function () {
-  var items = editor.call("selector:items");
+  if (!this.parentItem) {
+    return false;
+  }
 
-  if (!items || items.length === 0) {
+  // --- check if we have already spawned an entity on this grid cell
+  var cellGuid = this.getCellGuid();
+  var cellTag = "cell_" + cellGuid;
+
+  var found = false;
+  var children = this.parentItem.get("children");
+  for (let i = 0; i < children.length; i++) {
+    const child = editor.call("entities:get", children[i]);
+
+    if (child.get("tags").indexOf(cellTag) > -1) {
+      found = true;
+      break;
+    }
+  }
+
+  if (found) {
     return false;
   }
 
@@ -293,8 +327,11 @@ UranusEditorBlockBuilder.prototype.spawnEntityInCell = function () {
     return false;
   }
 
-  var parentItem = items[0];
-  var newItem = Uranus.Editor.duplicateEntities([bankItem], parentItem)[0];
+  var newItem = Uranus.Editor.duplicateEntities([bankItem], this.parentItem)[0];
+
+  var tags = newItem.get("tags");
+  tags.push(cellTag);
+  newItem.set("tags", tags);
 
   // calculate local position from world position
   var localPosition = this.brushEntity.getLocalPosition();

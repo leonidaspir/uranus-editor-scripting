@@ -3,6 +3,24 @@ import Editor from "./main";
 declare var editor: any;
 declare var Observer: any;
 
+export function setEntityModelOutline(
+  this: Editor,
+  entity: any,
+  state: boolean,
+  color?: number
+) {
+  if (state) {
+    this.selectionOutline[entity._guid] = {
+      entity: entity,
+      color: color ? color : [1, 1, 1],
+    };
+  } else {
+    if (this.selectionOutline[entity._guid]) {
+      delete this.selectionOutline[entity._guid];
+    }
+  }
+}
+
 export function duplicateEntity(
   this: Editor,
   entity: any,

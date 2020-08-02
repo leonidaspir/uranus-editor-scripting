@@ -1594,6 +1594,7 @@ UranusEditorBlockBuilder.prototype.editorInitialize = function () {
     this.lastCoord = new pc.Vec2();
     this.aabb = new pc.BoundingBox();
     this.brushEntity = undefined;
+    this.parentItem = undefined;
     // --- add custom CSS
     var sheet = window.document.styleSheets[0];
     sheet.insertRule(".active-block-builder-button { background-color: #f60 !important; color: white !important; }", sheet.cssRules.length);
@@ -1634,6 +1635,9 @@ UranusEditorBlockBuilder.prototype.startBuilding = function () {
         return;
     this.building = true;
     Uranus.Editor.editorPickerState(false);
+    // --- keep track of the parent holder item
+    var items = editor.call("selector:items");
+    this.parentItem = items[0];
     // --- enable input handlers
     this.setInputState(true);
     // --- calculate the size of the working grid
@@ -1736,11 +1740,15 @@ UranusEditorBlockBuilder.prototype.updateSelectedCell = function () {
     // --- update brush
     this.updateBrushEntity();
 };
+UranusEditorBlockBuilder.prototype.getCellGuid = function () {
+    return (this.currentCell.x + "_" + this.currentCell.y + "_" + this.currentCell.z);
+};
 UranusEditorBlockBuilder.prototype.addBrushEntity = function () {
     if (this.brushEntity)
         return;
     this.brushEntity = this.spawnEntity.clone();
     this.app.root.addChild(this.brushEntity);
+    Uranus.Editor.setEntityModelOutline(this.brushEntity, true);
 };
 UranusEditorBlockBuilder.prototype.updateBrushEntity = function () {
     if (!this.brushEntity)
@@ -1751,11 +1759,26 @@ UranusEditorBlockBuilder.prototype.removeBrushEntity = function () {
     if (!this.brushEntity)
         return;
     this.brushEntity.destroy();
+    Uranus.Editor.setEntityModelOutline(this.brushEntity, false);
     this.brushEntity = undefined;
 };
 UranusEditorBlockBuilder.prototype.spawnEntityInCell = function () {
-    var items = editor.call("selector:items");
-    if (!items || items.length === 0) {
+    if (!this.parentItem) {
+        return false;
+    }
+    // --- check if we have already spawned an entity on this grid cell
+    var cellGuid = this.getCellGuid();
+    var cellTag = "cell_" + cellGuid;
+    var found = false;
+    var children = this.parentItem.get("children");
+    for (var i = 0; i < children.length; i++) {
+        var child = editor.call("entities:get", children[i]);
+        if (child.get("tags").indexOf(cellTag) > -1) {
+            found = true;
+            break;
+        }
+    }
+    if (found) {
         return false;
     }
     // --- parent item to add new items
@@ -1763,8 +1786,10 @@ UranusEditorBlockBuilder.prototype.spawnEntityInCell = function () {
     if (!bankItem) {
         return false;
     }
-    var parentItem = items[0];
-    var newItem = Uranus.Editor.duplicateEntities([bankItem], parentItem)[0];
+    var newItem = Uranus.Editor.duplicateEntities([bankItem], this.parentItem)[0];
+    var tags = newItem.get("tags");
+    tags.push(cellTag);
+    newItem.set("tags", tags);
     // calculate local position from world position
     var localPosition = this.brushEntity.getLocalPosition();
     var angles = this.brushEntity.getLocalEulerAngles();

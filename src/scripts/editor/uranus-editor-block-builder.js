@@ -49,6 +49,18 @@ UranusEditorBlockBuilder.attributes.add("lockPlanes", {
   title: "Lock Planes",
 });
 
+UranusEditorBlockBuilder.attributes.add("applyLocalOffset", {
+  type: "boolean",
+  default: false,
+  title: "Apply Local Offset",
+});
+
+UranusEditorBlockBuilder.attributes.add("allowDuplicates", {
+  type: "boolean",
+  default: true,
+  title: "Allow Duplicates",
+});
+
 UranusEditorBlockBuilder.attributes.add("brushDistance", {
   type: "number",
   default: 15,
@@ -303,7 +315,11 @@ UranusEditorBlockBuilder.prototype.updateSelectedCell = function () {
 
 UranusEditorBlockBuilder.prototype.getCellGuid = function () {
   return (
-    this.currentCell.x + "_" + this.currentCell.y + "_" + this.currentCell.z
+    this.currentCell.x.toFixed(3) +
+    "_" +
+    this.currentCell.y.toFixed(3) +
+    "_" +
+    this.currentCell.z.toFixed(3)
   );
 };
 
@@ -323,7 +339,9 @@ UranusEditorBlockBuilder.prototype.updateBrushEntity = function () {
 
   this.brushEntity.setPosition(this.currentCell);
 
-  this.brushEntity.translate(this.brushEntityOffset);
+  if (this.applyLocalOffset) {
+    this.brushEntity.translate(this.brushEntityOffset);
+  }
 };
 
 UranusEditorBlockBuilder.prototype.rotateBrushEntity = function () {
@@ -351,19 +369,21 @@ UranusEditorBlockBuilder.prototype.spawnEntityInCell = function () {
   var cellGuid = this.getCellGuid();
   var cellTag = "cell_" + cellGuid;
 
-  var found = false;
-  var children = this.parentItem.get("children");
-  for (let i = 0; i < children.length; i++) {
-    const child = editor.call("entities:get", children[i]);
+  if (this.allowDuplicates === false) {
+    var found = false;
+    var children = this.parentItem.get("children");
+    for (let i = 0; i < children.length; i++) {
+      const child = editor.call("entities:get", children[i]);
 
-    if (child.get("tags").indexOf(cellTag) > -1) {
-      found = true;
-      break;
+      if (child.get("tags").indexOf(cellTag) > -1) {
+        found = true;
+        break;
+      }
     }
-  }
 
-  if (found) {
-    return false;
+    if (found) {
+      return false;
+    }
   }
 
   // --- parent item to add new items

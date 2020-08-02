@@ -1578,6 +1578,16 @@ UranusEditorBlockBuilder.attributes.add("lockPlanes", {
     default: [0, 0, 0],
     title: "Lock Planes",
 });
+UranusEditorBlockBuilder.attributes.add("applyLocalOffset", {
+    type: "boolean",
+    default: false,
+    title: "Apply Local Offset",
+});
+UranusEditorBlockBuilder.attributes.add("allowDuplicates", {
+    type: "boolean",
+    default: true,
+    title: "Allow Duplicates",
+});
 UranusEditorBlockBuilder.attributes.add("brushDistance", {
     type: "number",
     default: 15,
@@ -1772,7 +1782,11 @@ UranusEditorBlockBuilder.prototype.updateSelectedCell = function () {
     this.updateBrushEntity();
 };
 UranusEditorBlockBuilder.prototype.getCellGuid = function () {
-    return (this.currentCell.x + "_" + this.currentCell.y + "_" + this.currentCell.z);
+    return (this.currentCell.x.toFixed(3) +
+        "_" +
+        this.currentCell.y.toFixed(3) +
+        "_" +
+        this.currentCell.z.toFixed(3));
 };
 UranusEditorBlockBuilder.prototype.addBrushEntity = function () {
     if (this.brushEntity)
@@ -1786,7 +1800,9 @@ UranusEditorBlockBuilder.prototype.updateBrushEntity = function () {
     if (!this.brushEntity)
         return;
     this.brushEntity.setPosition(this.currentCell);
-    this.brushEntity.translate(this.brushEntityOffset);
+    if (this.applyLocalOffset) {
+        this.brushEntity.translate(this.brushEntityOffset);
+    }
 };
 UranusEditorBlockBuilder.prototype.rotateBrushEntity = function () {
     if (!this.brushEntity)
@@ -1807,17 +1823,19 @@ UranusEditorBlockBuilder.prototype.spawnEntityInCell = function () {
     // --- check if we have already spawned an entity on this grid cell
     var cellGuid = this.getCellGuid();
     var cellTag = "cell_" + cellGuid;
-    var found = false;
-    var children = this.parentItem.get("children");
-    for (var i = 0; i < children.length; i++) {
-        var child = editor.call("entities:get", children[i]);
-        if (child.get("tags").indexOf(cellTag) > -1) {
-            found = true;
-            break;
+    if (this.allowDuplicates === false) {
+        var found = false;
+        var children = this.parentItem.get("children");
+        for (var i = 0; i < children.length; i++) {
+            var child = editor.call("entities:get", children[i]);
+            if (child.get("tags").indexOf(cellTag) > -1) {
+                found = true;
+                break;
+            }
         }
-    }
-    if (found) {
-        return false;
+        if (found) {
+            return false;
+        }
     }
     // --- parent item to add new items
     var bankItem = editor.call("entities:get", this.spawnEntity._guid);

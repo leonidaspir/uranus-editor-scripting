@@ -63,11 +63,16 @@ UranusTerrainGenerateHeightmap.prototype.createTerrain = function () {
     this.subdivisions
   ).then(
     function (renderModel) {
+      var layers = [this.app.scene.layers.getLayerByName("World").id];
+
+      // --- check if we have a waves layer
+      var layerWaves = this.app.scene.layers.getLayerByName("WaveSources");
+      if (layerWaves) {
+        layers.push(layerWaves.id);
+      }
+
       this.entity.addComponent("model", {
-        layers: [
-          this.app.scene.layers.getLayerByName("World").id,
-          this.app.scene.layers.getLayerByName("WaveSources").id,
-        ],
+        layers: layers,
         castShadows: true,
         receiveShadows: true,
       });

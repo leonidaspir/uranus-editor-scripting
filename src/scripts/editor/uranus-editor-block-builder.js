@@ -1,3 +1,5 @@
+// ToDo handle deletion
+// ToDo check if we can do undo-ing in a single step
 var UranusEditorBlockBuilder = pc.createScript("uranusEditorBlockBuilder");
 
 UranusEditorBlockBuilder.attributes.add("inEditor", {
@@ -83,7 +85,7 @@ UranusEditorBlockBuilder.prototype.editorInitialize = function () {
   this.keyUpListener = undefined;
 
   // --- add custom CSS
-  const sheet = window.document.styleSheets[0];
+  var sheet = window.document.styleSheets[0];
   sheet.insertRule(
     ".active-block-builder-button { background-color: #f60 !important; color: white !important; }",
     sheet.cssRules.length
@@ -180,7 +182,6 @@ UranusEditorBlockBuilder.prototype.setInputState = function (state) {
   if (state === true) {
     this.app.mouse.on(pc.EVENT_MOUSEDOWN, this.onMouseDown, this);
     this.app.mouse.on(pc.EVENT_MOUSEMOVE, this.onMouseMove, this);
-    this.app.mouse.on(pc.EVENT_MOUSEWHEEL, this.onMouseWheel, this);
     this.app.mouse.on(pc.EVENT_MOUSEUP, this.onMouseUp, this);
 
     this.keyUpListener = this.onKeyUp.bind(this);
@@ -188,7 +189,6 @@ UranusEditorBlockBuilder.prototype.setInputState = function (state) {
   } else {
     this.app.mouse.off(pc.EVENT_MOUSEDOWN, this.onMouseDown, this);
     this.app.mouse.off(pc.EVENT_MOUSEMOVE, this.onMouseMove, this);
-    this.app.mouse.off(pc.EVENT_MOUSEWHEEL, this.onMouseWheel, this);
     this.app.mouse.off(pc.EVENT_MOUSEUP, this.onMouseUp, this);
 
     window.removeEventListener("keyup", this.keyUpListener, true);
@@ -373,7 +373,7 @@ UranusEditorBlockBuilder.prototype.spawnEntityInCell = function () {
     var found = false;
     var children = this.parentItem.get("children");
     for (let i = 0; i < children.length; i++) {
-      const child = editor.call("entities:get", children[i]);
+      var child = editor.call("entities:get", children[i]);
 
       if (child.get("tags").indexOf(cellTag) > -1) {
         found = true;

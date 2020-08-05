@@ -2620,8 +2620,13 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
     if (!this.parentItem) {
         return false;
     }
-    // --- parent item to add new items
+    // --- find bank item
     var bankItem = editor.call("entities:get", this.spawnEntity._guid);
+    var bankChildren = bankItem.get("children");
+    if (bankChildren && bankChildren.length > 0) {
+        var randomGuid = bankChildren[Math.floor(Math.random() * bankChildren.length)];
+        bankItem = editor.call("entities:get", randomGuid);
+    }
     if (!bankItem) {
         return false;
     }
@@ -2636,7 +2641,7 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
             noSelect: true,
         });
         item.set("enabled", false);
-        referenceEntity = this.spawnEntity;
+        referenceEntity = bankItem.entity;
     }
     else {
         item = Uranus.Editor.duplicateEntities([bankItem], this.parentItem)[0];
@@ -2705,61 +2710,74 @@ UranusEditorEntitiesPaint.prototype.clearEditorInstances = function () {
     }
 };
 UranusEditorEntitiesPaint.prototype.enableHardwareInstancing = function () {
-    if (!this.spawnEntity || !this.spawnEntity.model) {
-        return false;
-    }
+    var entities = this.spawnEntity.children[0] instanceof pc.Entity
+        ? this.spawnEntity.children
+        : [this.spawnEntity];
     // --- loop through the materials of the spawn entity and enable hw instancing
-    this.spawnEntity.model.meshInstances.forEach(function (meshInstance) {
-        var material = meshInstance.material;
-        if (this.hardwareInstancing) {
-            material.onUpdateShader = function (options) {
-                options.useInstancing = true;
-                return options;
-            };
-        }
-        else {
-            material.onUpdateShader = undefined;
-            meshInstance.setInstancing();
-        }
-        material.update();
+    entities.forEach(function (spawnEntity) {
+        if (!spawnEntity.model)
+            return true;
+        spawnEntity.model.meshInstances.forEach(function (meshInstance) {
+            var material = meshInstance.material;
+            if (this.hardwareInstancing) {
+                material.onUpdateShader = function (options) {
+                    options.useInstancing = true;
+                    return options;
+                };
+            }
+            else {
+                material.onUpdateShader = undefined;
+                meshInstance.setInstancing();
+            }
+            material.update();
+        }.bind(this));
     }.bind(this));
 };
 UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
+    var entities = this.spawnEntity.children[0] instanceof pc.Entity
+        ? this.spawnEntity.children
+        : [this.spawnEntity];
     var instanceCount = this.entity.children.length;
     var matrix = new pc.Mat4();
-    var rot = new pc.Quat();
-    var spawnScale = this.spawnEntity.getLocalScale();
-    this.spawnEntity.model.meshInstances.forEach(function (meshInstance) {
-        // --- calculate pivot offset
-        var offset = this.vec
-            .copy(meshInstance.aabb.center)
-            .sub(this.spawnEntity.getPosition());
-        offset.x /= spawnScale.x;
-        offset.y /= spawnScale.y;
-        offset.z /= spawnScale.z;
-        // --- store matrices for individual instances into array
-        var matrices = new Float32Array(instanceCount * 16);
-        var matrixIndex = 0;
-        for (var i = 0; i < instanceCount; i++) {
-            var instance = this.entity.children[i];
-            var scale = instance.getLocalScale();
-            // --- calculate pivot point position
-            this.vec1.copy(instance.getPosition());
-            this.vec1.x += offset.x * scale.x;
-            this.vec1.y += offset.y * scale.y;
-            this.vec1.z += offset.z * scale.z;
-            matrix.setTRS(this.vec1, instance.getRotation(), scale);
-            // copy matrix elements into array of floats
-            for (var m = 0; m < 16; m++)
-                matrices[matrixIndex++] = matrix.data[m];
-        }
-        // --- create the vertex buffer
-        if (meshInstance.instancingData &&
-            meshInstance.instancingData.vertexBuffer) {
-            meshInstance.instancingData.vertexBuffer.destroy();
-        }
-        var vertexBuffer = new pc.VertexBuffer(this.app.graphicsDevice, pc.VertexFormat.defaultInstancingFormat, instanceCount, pc.BUFFER_STATIC, matrices);
-        meshInstance.setInstancing(vertexBuffer);
+    entities.forEach(function (spawnEntity) {
+        if (!spawnEntity.model)
+            return true;
+        var spawnScale = spawnEntity.getLocalScale();
+        spawnEntity.model.meshInstances.forEach(function (meshInstance) {
+            // --- calculate pivot offset
+            var offset = this.vec
+                .copy(meshInstance.aabb.center)
+                .sub(spawnEntity.getPosition());
+            offset.x /= spawnScale.x;
+            offset.y /= spawnScale.y;
+            offset.z /= spawnScale.z;
+            // --- store matrices for individual instances into array
+            var matrices = new Float32Array(instanceCount * 16);
+            var matrixIndex = 0;
+            for (var i = 0; i < instanceCount; i++) {
+                var instance = this.entity.children[i];
+                // --- check if we are interested in this mesh instance
+                if (instance.name !== spawnEntity.name)
+                    continue;
+                var scale = instance.getLocalScale();
+                // --- calculate pivot point position
+                this.vec1.copy(instance.getPosition());
+                this.vec1.x += offset.x * scale.x;
+                this.vec1.y += offset.y * scale.y;
+                this.vec1.z += offset.z * scale.z;
+                matrix.setTRS(this.vec1, instance.getRotation(), scale);
+                // copy matrix elements into array of floats
+                for (var m = 0; m < 16; m++)
+                    matrices[matrixIndex++] = matrix.data[m];
+            }
+            // --- create the vertex buffer
+            if (meshInstance.instancingData &&
+                meshInstance.instancingData.vertexBuffer) {
+                meshInstance.instancingData.vertexBuffer.destroy();
+            }
+            var vertexBuffer = new pc.VertexBuffer(this.app.graphicsDevice, pc.VertexFormat.defaultInstancingFormat, instanceCount, pc.BUFFER_STATIC, matrices);
+            meshInstance.setInstancing(vertexBuffer);
+        }.bind(this));
     }.bind(this));
 };
 UranusEditorEntitiesPaint.prototype.setMat4Forward = function (mat4, forward, up) {

@@ -1,5 +1,4 @@
 // ToDo optimize deletion time
-// ToDo add offset pos
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
@@ -36,6 +35,11 @@ UranusEditorEntitiesPaint.attributes.add("scaleMinMax", {
   default: [0.8, 1.2],
   title: "Scale Min/Max",
 });
+UranusEditorEntitiesPaint.attributes.add("posOffset", {
+  type: "vec3",
+  default: [0.0, 0.0, 0.0],
+  title: "Pos Offset",
+});
 UranusEditorEntitiesPaint.attributes.add("rotateThem", {
   type: "string",
   enum: [
@@ -47,6 +51,12 @@ UranusEditorEntitiesPaint.attributes.add("rotateThem", {
   default: "y",
   title: "Rotate Them",
 });
+UranusEditorEntitiesPaint.attributes.add("alignThem", {
+  type: "boolean",
+  default: false,
+  title: "Align To Surface",
+});
+
 UranusEditorEntitiesPaint.attributes.add("hardwareInstancing", {
   type: "boolean",
   default: false,
@@ -56,25 +66,42 @@ UranusEditorEntitiesPaint.attributes.add("hardwareInstancing", {
 UranusEditorEntitiesPaint.prototype.initialize = function () {
   this.vec = new pc.Vec3();
   this.vec1 = new pc.Vec3();
+  this.vec2 = new pc.Vec3();
 
-  if (this.hardwareInstancing) {
-    this.enableHardwareInstancing();
+  this.enableHardwareInstancing();
 
-    this.updateHardwareInstancing();
-  }
+  this.updateHardwareInstancing();
 };
 
 UranusEditorEntitiesPaint.prototype.editorInitialize = function () {
   // --- variables
   this.buildButtonState = false;
+  this.eraseButtonState = false;
   this.building = false;
   this.mouseDown = false;
   this.currentPosition = new pc.Vec3();
   this.randomPosition = new pc.Vec3();
   this.lastPosition = new pc.Vec3();
 
+  this.matrix = new pc.Mat4();
+  this.quat = new pc.Quat();
+
+  this.x = new pc.Vec3();
+  this.y = new pc.Vec3();
+  this.z = new pc.Vec3();
+
   this.parentItem = undefined;
   this.keyUpListener = undefined;
+
+  // --- gizmo material
+  this.gizmoMaterial = new pc.StandardMaterial();
+  this.gizmoMaterial.blendType = pc.BLEND_NORMAL;
+  this.gizmoMaterial.emissive = new pc.Vec3(1, 1, 1);
+  this.gizmoMaterial.emissiveInstensity = 10;
+  this.gizmoMaterial.opacity = 0.25;
+  this.gizmoMaterial.useLighting = false;
+
+  this.gizmoMaterial.update();
 
   // --- add custom CSS
   var sheet = window.document.styleSheets[0];
@@ -98,6 +125,11 @@ UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (
   btnBuild.on(
     "click",
     function () {
+      if (this.eraseButtonState === true) {
+        this.eraseButtonState = false;
+        this.setEraseState(btnErase);
+      }
+
       this.buildButtonState = !this.buildButtonState;
       this.setBuildingState(btnBuild);
     }.bind(this)
@@ -106,9 +138,29 @@ UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (
 
   this.setBuildingState(btnBuild);
 
+  var btnErase = new ui.Button({
+    text: "- Erase",
+  });
+
+  btnErase.on(
+    "click",
+    function () {
+      if (this.buildButtonState === true) {
+        this.buildButtonState = false;
+        this.setBuildingState(btnBuild);
+      }
+
+      this.eraseButtonState = !this.eraseButtonState;
+      this.setEraseState(btnErase);
+    }.bind(this)
+  );
+  containerEl.append(btnErase.element);
+
+  this.setEraseState(btnErase);
+
   // --- clear button for removing all entity children
   var btnClearInstances = new ui.Button({
-    text: "- Clear Instances",
+    text: "- Clear All Instances",
   });
 
   btnClearInstances.on("click", this.clearEditorInstances.bind(this));
@@ -121,7 +173,11 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
 ) {
   if (!this.building) return;
 
-  if (property === "spawnEntity") {
+  this.setGizmoState(false);
+  this.setGizmoState(true);
+
+  if (property === "hardwareInstancing") {
+    this.enableHardwareInstancing();
   }
 };
 
@@ -137,6 +193,18 @@ UranusEditorEntitiesPaint.prototype.setBuildingState = function (btnBuild) {
   }
 };
 
+UranusEditorEntitiesPaint.prototype.setEraseState = function (btnErase) {
+  if (this.eraseButtonState) {
+    this.startBuilding();
+
+    btnErase.element.classList.add("active-entities-painter-button");
+  } else {
+    this.stopBuilding();
+
+    btnErase.element.classList.remove("active-entities-painter-button");
+  }
+};
+
 UranusEditorEntitiesPaint.prototype.startBuilding = function () {
   if (this.building === true || !this.spawnEntity) return;
   this.building = true;
@@ -149,6 +217,9 @@ UranusEditorEntitiesPaint.prototype.startBuilding = function () {
 
   // --- enable input handlers
   this.setInputState(true);
+
+  // --- enable gizmo
+  this.setGizmoState(true);
 };
 
 UranusEditorEntitiesPaint.prototype.stopBuilding = function () {
@@ -159,6 +230,31 @@ UranusEditorEntitiesPaint.prototype.stopBuilding = function () {
 
   // --- disable input handlers
   this.setInputState(false);
+
+  // --- disable gizmo
+  this.setGizmoState(false);
+};
+
+UranusEditorEntitiesPaint.prototype.setGizmoState = function (state) {
+  if (state === true) {
+    this.gizmo = new pc.Entity("Gizmo Sphere");
+    this.gizmo.addComponent("model", {
+      type: "sphere",
+      castShadows: false,
+      receiveShadows: false,
+    });
+    this.gizmo.model.material = this.gizmoMaterial;
+    this.gizmo.setLocalScale(
+      this.brushDistance * 2,
+      this.brushDistance * 2,
+      this.brushDistance * 2
+    );
+    this.app.root.addChild(this.gizmo);
+  } else {
+    if (this.gizmo) {
+      this.gizmo.destroy();
+    }
+  }
 };
 
 UranusEditorEntitiesPaint.prototype.setInputState = function (state) {
@@ -231,7 +327,44 @@ UranusEditorEntitiesPaint.prototype.parseMousePoint = function (
   var result = this.app.systems.rigidbody.raycastFirst(start, end);
 
   if (result) {
-    this.spawnEntityInPoint(result.point, result.normal);
+    // --- update the gizmo position
+    if (this.gizmo) {
+      this.gizmo.setPosition(result.point);
+    }
+
+    // --- check if we are painting or erasing
+    if (this.buildButtonState) {
+      this.spawnEntityInPoint(result.point, result.normal);
+    } else if (this.eraseButtonState) {
+      this.clearEntitiesInPoint(result.point);
+    }
+  }
+};
+
+UranusEditorEntitiesPaint.prototype.clearEntitiesInPoint = function (point) {
+  if (!this.parentItem) {
+    return false;
+  }
+
+  var center = this.vec.copy(point);
+
+  // --- iterate the instances and remove ones in the bounding area
+  this.parentItem.get("children").forEach(
+    function (guid) {
+      var item = editor.call("entities:get", guid);
+
+      if (
+        item &&
+        center.distance(item.entity.getPosition()) <= this.brushDistance
+      ) {
+        editor.call("entities:removeEntity", item);
+      }
+    }.bind(this)
+  );
+
+  // --- update renderer if required
+  if (this.hardwareInstancing) {
+    this.updateHardwareInstancing();
   }
 };
 
@@ -245,6 +378,8 @@ UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (
   if (this.currentPosition.distance(this.lastPosition) < this.brushDistance) {
     return false;
   }
+
+  let count = 0;
 
   // check how many items we will be creating
   if (this.itemsPerStroke > 1) {
@@ -271,13 +406,23 @@ UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (
         this.randomPosition.y = this.currentPosition.y;
       }
 
+      count++;
       this.createItem(this.randomPosition, normal);
     }
   } else {
+    count++;
     this.createItem(this.currentPosition, normal);
   }
 
   this.lastPosition.set(point.x, point.y, point.z);
+
+  Uranus.Editor.interface.logMessage(
+    'Entities Painter spawned <strong style="color: lightred;">' +
+      count +
+      '</strong> instances for <strong style="color: cyan;">' +
+      this.entity.name +
+      "</strong>"
+  );
 
   // --- update renderer if required
   if (this.hardwareInstancing) {
@@ -298,6 +443,7 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
   }
 
   var item;
+  var referenceEntity;
 
   // --- if we are using HW instancing, we spawn an empty entity (no model or other components)
   if (this.hardwareInstancing) {
@@ -308,33 +454,55 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
       noSelect: true,
     });
     item.set("enabled", false);
+    referenceEntity = this.spawnEntity;
   } else {
     item = Uranus.Editor.duplicateEntities([bankItem], this.parentItem)[0];
+    referenceEntity = item.entity;
   }
 
   // --- scale them up
-  var scale = this.vec.copy(item.entity.getLocalScale());
+  var scale = this.vec.copy(referenceEntity.getLocalScale());
   var newScaleFactor = pc.math.random(this.scaleMinMax.x, this.scaleMinMax.y);
   scale.scale(newScaleFactor);
 
-  // --- rotate them
-  const angles = this.vec1.copy(item.entity.getLocalEulerAngles());
-  switch (this.rotateThem) {
-    case "x":
-      angles.x = pc.math.random(0, 360);
-      break;
-    case "y":
-      angles.y = pc.math.random(0, 360);
-      break;
-    case "z":
-      angles.z = pc.math.random(0, 360);
-      break;
+  // --- rotate or align them
+  let angles = this.vec1;
+  if (this.alignThem) {
+    // --- align in the direction of the hit normal
+    this.setMat4Forward(this.matrix, normal, pc.Vec3.UP);
+    this.quat.setFromMat4(this.matrix);
+    angles
+      .copy(this.quat.getEulerAngles())
+      .sub(referenceEntity.getLocalEulerAngles());
+  } else {
+    angles.copy(referenceEntity.getLocalEulerAngles());
+    switch (this.rotateThem) {
+      case "x":
+        angles.x = pc.math.random(0, 360);
+        break;
+      case "y":
+        angles.y = pc.math.random(0, 360);
+        break;
+      case "z":
+        angles.z = pc.math.random(0, 360);
+        break;
+    }
   }
+
+  // --- position + offset
+  var offset = this.vec2.copy(this.posOffset);
+  offset.x *= scale.x;
+  offset.y *= scale.y;
+  offset.z *= scale.z;
 
   item.history.enabled = false;
 
   item.set("enabled", true);
-  item.set("position", [position.x, position.y, position.z]);
+  item.set("position", [
+    position.x + offset.x,
+    position.y + offset.y,
+    position.z + offset.z,
+  ]);
   item.set("rotation", [angles.x, angles.y, angles.z]);
   item.set("scale", [scale.x, scale.y, scale.z]);
 
@@ -371,14 +539,22 @@ UranusEditorEntitiesPaint.prototype.enableHardwareInstancing = function () {
   }
 
   // --- loop through the materials of the spawn entity and enable hw instancing
-  this.spawnEntity.model.meshInstances.forEach(function (meshInstance) {
-    var material = meshInstance.material;
-    material.onUpdateShader = function (options) {
-      options.useInstancing = true;
-      return options;
-    };
-    material.update();
-  });
+  this.spawnEntity.model.meshInstances.forEach(
+    function (meshInstance) {
+      var material = meshInstance.material;
+
+      if (this.hardwareInstancing) {
+        material.onUpdateShader = function (options) {
+          options.useInstancing = true;
+          return options;
+        };
+      } else {
+        material.onUpdateShader = undefined;
+        meshInstance.setInstancing();
+      }
+      material.update();
+    }.bind(this)
+  );
 };
 
 UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
@@ -406,7 +582,6 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
         var instance = this.entity.children[i];
 
         var scale = instance.getLocalScale();
-        var angles = instance.getLocalEulerAngles();
 
         // --- calculate pivot point position
         this.vec1.copy(instance.getPosition());
@@ -414,11 +589,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
         this.vec1.y += offset.y * scale.y;
         this.vec1.z += offset.z * scale.z;
 
-        matrix.setTRS(
-          this.vec1,
-          rot.setFromEulerAngles(angles.x, angles.y, angles.z),
-          scale
-        );
+        matrix.setTRS(this.vec1, instance.getRotation(), scale);
 
         // copy matrix elements into array of floats
         for (var m = 0; m < 16; m++) matrices[matrixIndex++] = matrix.data[m];
@@ -442,8 +613,38 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
       meshInstance.setInstancing(vertexBuffer);
     }.bind(this)
   );
+};
 
-  console.log(
-    "Spawned " + this.entity.name + " " + instanceCount + " instances."
-  );
+UranusEditorEntitiesPaint.prototype.setMat4Forward = function (
+  mat4,
+  forward,
+  up
+) {
+  var x = this.x;
+  var y = this.y;
+  var z = this.z;
+
+  // Inverse the forward direction as +z is pointing backwards due to the coordinate system
+  z.copy(forward).scale(-1);
+  y.copy(up).normalize();
+  x.cross(y, z).normalize();
+  y.cross(z, x);
+
+  var r = mat4.data;
+
+  r[0] = x.x;
+  r[1] = x.y;
+  r[2] = x.z;
+  r[3] = 0;
+  r[4] = y.x;
+  r[5] = y.y;
+  r[6] = y.z;
+  r[7] = 0;
+  r[8] = z.x;
+  r[9] = z.y;
+  r[10] = z.z;
+  r[11] = 0;
+  r[15] = 1;
+
+  return mat4;
 };

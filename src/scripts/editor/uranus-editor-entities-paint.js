@@ -395,8 +395,16 @@ UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (
         b * this.brushRadius * Math.sin((2 * Math.PI * a) / b);
 
       // --- get elevation under the point
-      this.vec.set(this.randomPosition.x, 10000, this.randomPosition.z);
-      this.vec1.set(this.randomPosition.x, -10000, this.randomPosition.z);
+      this.vec.set(
+        this.randomPosition.x,
+        this.randomPosition.x.y + 10000,
+        this.randomPosition.z
+      );
+      this.vec1.set(
+        this.randomPosition.x,
+        this.randomPosition.x.y - 10000,
+        this.randomPosition.z
+      );
 
       var result = this.app.systems.rigidbody.raycastFirst(this.vec, this.vec1);
 

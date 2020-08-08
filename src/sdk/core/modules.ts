@@ -85,5 +85,6 @@ export async function loadModules(this: Editor, modules: any) {
         ""
       );
     }
+    module.loaded = true;
   }
 }

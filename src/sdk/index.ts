@@ -13,15 +13,18 @@ if (Editor.inEditor() === true) {
   new Editor();
 
   if (editor && Uranus && Uranus.Editor) {
-    Uranus.Editor.loadModules([
+    const modules = [
       {
         moduleName: "Ammo",
         glueUrl: "ammo.wasm.js",
         wasmUrl: "ammo.wasm.wasm",
         fallbackUrl: "ammo.js",
+        loaded: false,
       },
-    ]).then(function () {
-      Uranus.Editor.startAppLoop(true, true);
+    ];
+
+    Uranus.Editor.loadModules(modules).then(function () {
+      Uranus.Editor.startAppLoop(true, modules[0].loaded === true);
       Uranus.Editor.batchExecuteScripts();
     });
   }

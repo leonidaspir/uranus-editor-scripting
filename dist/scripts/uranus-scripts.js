@@ -3388,47 +3388,47 @@ UranusEffectWater.prototype.getWaterShader = function () {
 // --- dependencies
 // bezier.js
 // ----------------
-var UranusLineRenderer = pc.createScript("uranusLineRenderer");
-UranusLineRenderer.attributes.add("inEditor", {
+var UranusHelperLineRenderer = pc.createScript("uranusHelperLineRenderer");
+UranusHelperLineRenderer.attributes.add("inEditor", {
     type: "boolean",
     default: true,
     title: "In Editor",
 });
-UranusLineRenderer.attributes.add("points", {
+UranusHelperLineRenderer.attributes.add("points", {
     type: "entity",
     array: true,
     title: "Points",
 });
-UranusLineRenderer.attributes.add("color", {
+UranusHelperLineRenderer.attributes.add("color", {
     type: "rgb",
     title: "Color",
 });
-UranusLineRenderer.attributes.add("isBezier", {
+UranusHelperLineRenderer.attributes.add("isBezier", {
     type: "boolean",
     default: false,
     title: "Is Bezier?",
 });
-UranusLineRenderer.attributes.add("bezierWeight", {
+UranusHelperLineRenderer.attributes.add("bezierWeight", {
     type: "number",
     default: 0.5,
     title: "Bezier Weight",
 });
-UranusLineRenderer.attributes.add("bezierDivisions", {
+UranusHelperLineRenderer.attributes.add("bezierDivisions", {
     type: "number",
     default: 25,
     title: "Bezier Divisions",
 });
-UranusLineRenderer.attributes.add("renderOnInit", {
+UranusHelperLineRenderer.attributes.add("renderOnInit", {
     type: "boolean",
     default: true,
     title: "Render On Init",
 });
-UranusLineRenderer.attributes.add("updatePerFrame", {
+UranusHelperLineRenderer.attributes.add("updatePerFrame", {
     type: "boolean",
     default: false,
     title: "Update per Frame",
 });
-UranusLineRenderer.prototype.initialize = function () {
+UranusHelperLineRenderer.prototype.initialize = function () {
     // --- variables
     this.lines = [];
     this.p1 = new pc.Vec3();
@@ -3441,11 +3441,11 @@ UranusLineRenderer.prototype.initialize = function () {
         this.prepareLines();
     }
 };
-UranusLineRenderer.prototype.editorAttrChange = function (property, value) {
+UranusHelperLineRenderer.prototype.editorAttrChange = function (property, value) {
     this.prepareLines();
 };
 // update code called every frame
-UranusLineRenderer.prototype.update = function () {
+UranusHelperLineRenderer.prototype.update = function () {
     if (this.updatePerFrame) {
         this.prepareLines();
     }
@@ -3453,7 +3453,7 @@ UranusLineRenderer.prototype.update = function () {
         this.renderLines();
     }
 };
-UranusLineRenderer.prototype.prepareLines = function (points) {
+UranusHelperLineRenderer.prototype.prepareLines = function (points) {
     if (points) {
         this.points = points;
     }
@@ -3481,7 +3481,7 @@ UranusLineRenderer.prototype.prepareLines = function (points) {
     }
     this.ready = true;
 };
-UranusLineRenderer.prototype.prepareBezierLine = function (line) {
+UranusHelperLineRenderer.prototype.prepareBezierLine = function (line) {
     // --- find start/end and middle points
     this.p1.copy(line.startPoint);
     this.p4.copy(line.endPoint);
@@ -3492,7 +3492,7 @@ UranusLineRenderer.prototype.prepareBezierLine = function (line) {
     // --- spawn an instance
     return new Bezier(this.p1.x, this.p1.y, this.p1.z, this.p2.x, this.p2.y, this.p2.z, this.p3.x, this.p3.y, this.p3.z, this.p4.x, this.p4.y, this.p4.z);
 };
-UranusLineRenderer.prototype.renderLines = function () {
+UranusHelperLineRenderer.prototype.renderLines = function () {
     for (var index = 0; index < this.points.length - 1; index++) {
         var line = this.lines[index];
         if (this.isBezier === true) {
@@ -3503,7 +3503,7 @@ UranusLineRenderer.prototype.renderLines = function () {
         }
     }
 };
-UranusLineRenderer.prototype.renderBezierLine = function (line) {
+UranusHelperLineRenderer.prototype.renderBezierLine = function (line) {
     // Render the curve itself
     var lut = line.bezier.getLUT(this.bezierDivisions);
     for (var i = 0; i < lut.length - 1; i++) {
@@ -3514,6 +3514,69 @@ UranusLineRenderer.prototype.renderBezierLine = function (line) {
         this.p2.y = lut[i + 1].y;
         this.p2.z = lut[i + 1].z;
         this.app.renderLine(this.p1, this.p2, this.color);
+    }
+};
+var UranusHelperResizableSurface = pc.createScript("uranusHelperResizableSurface");
+UranusHelperResizableSurface.attributes.add("inEditor", {
+    type: "boolean",
+    default: true,
+    title: "In Editor",
+});
+UranusHelperResizableSurface.attributes.add("target", {
+    type: "entity",
+    title: "target",
+});
+UranusHelperResizableSurface.attributes.add("children", {
+    type: "entity",
+    array: true,
+    title: "Children",
+});
+UranusHelperResizableSurface.attributes.add("alignPlane", {
+    type: "string",
+    default: "xz",
+    title: "Align Plane",
+    enum: [{ XZ: "xz" }, { XY: "xy" }, { YZ: "yz" }],
+});
+UranusHelperResizableSurface.attributes.add("padding", {
+    type: "vec4",
+    default: [1, 1, 1, 1],
+    title: "Padding",
+});
+UranusHelperResizableSurface.attributes.add("basePoint", {
+    type: "string",
+    default: "center",
+    title: "Base Point",
+    enum: [
+        { Center: "center" },
+        { "Top Left": "topLeft" },
+        { "Top Right": "topRight" },
+        { "Bottom Left": "bottomLeft" },
+        { "Bottom Right": "bottomRight" },
+    ],
+});
+UranusHelperResizableSurface.attributes.add("renderOnInit", {
+    type: "boolean",
+    default: true,
+    title: "Render On Init",
+});
+UranusHelperResizableSurface.prototype.initialize = function () {
+    // --- variables
+    this.vec = new pc.Vec3();
+    // --- execute
+    if (this.renderOnInit) {
+        this.prepare();
+    }
+};
+UranusHelperResizableSurface.prototype.editorAttrChange = function (property, value) { };
+UranusHelperLineRenderer.prototype.prepare = function (target, children) {
+    if (target) {
+        this.target;
+    }
+    else {
+        this.target = this.target ? this.target : this.entity;
+    }
+    if (children) {
+        this.children = children;
     }
 };
 var UranusTerrainGenerateHeightmap = pc.createScript("uranusTerrainGenerateHeightmap");

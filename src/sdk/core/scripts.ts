@@ -117,6 +117,7 @@ export function prepareEditorScriptAttributes(script: any) {
 
   // --- check if we are running in editor to prepare the attributes
   const item = editor.call("entities:get", script.entity._guid);
+  const app = editor.call("viewport:app");
 
   const path =
     "components.script.scripts." + script.__scriptType.__name + ".attributes";
@@ -152,15 +153,35 @@ export function prepareEditorScriptAttributes(script: any) {
           function (value: any, valueOld: any) {
             if (isArray) {
               // --- find the correct key for the object
-              const obj = script[property];
-              let keys;
-              if (isNaN(obj.x) === false) {
-                keys = ["x", "y", "z", "w"];
-              } else if (isNaN(obj.r) === false) {
-                keys = ["r", "g", "b", "a"];
-              }
+              let obj = script[property];
 
-              obj[keys[i]] = value;
+              if (Array.isArray(obj)) {
+                // if it's an array and we are at 0 index, empty it
+                if (i === 0) {
+                  script[property] = [];
+                  obj = script[property];
+                }
+
+                // in editor we get resource ids for entity or asset arrays
+                // ToDo find a more elegant way to get the type of the array
+                // 1. try entity first
+                let item = editor.call("entities:get", value);
+
+                if (item) {
+                  obj[i] = item.entity;
+                } else {
+                  obj[i] = app.assets.get(value);
+                }
+              } else {
+                let keys;
+                if (isNaN(obj.x) === false) {
+                  keys = ["x", "y", "z", "w"];
+                } else if (isNaN(obj.r) === false) {
+                  keys = ["r", "g", "b", "a"];
+                }
+
+                obj[keys[i]] = value;
+              }
             } else {
               script[property] = value;
             }

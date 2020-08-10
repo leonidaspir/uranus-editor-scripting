@@ -32,6 +32,13 @@ UranusHelperLineRenderer.attributes.add("bezierWeight", {
   title: "Bezier Weight",
 });
 
+UranusHelperLineRenderer.attributes.add("bezierAxis", {
+  type: "string",
+  default: "x",
+  title: "Bezier Axis",
+  enum: [{ X: "x" }, { Y: "y" }, { Z: "z" }],
+});
+
 UranusHelperLineRenderer.attributes.add("bezierDivisions", {
   type: "number",
   default: 25,
@@ -48,6 +55,12 @@ UranusHelperLineRenderer.attributes.add("updatePerFrame", {
   type: "boolean",
   default: false,
   title: "Update per Frame",
+});
+
+UranusHelperLineRenderer.attributes.add("fromSurface", {
+  type: "boolean",
+  default: false,
+  title: "Points From Surface",
 });
 
 UranusHelperLineRenderer.prototype.initialize = function () {
@@ -88,6 +101,10 @@ UranusHelperLineRenderer.prototype.prepareLines = function (points) {
     this.points = points;
   }
 
+  if (this.fromSurface && this.entity.script.uranusHelperResizableSurface) {
+    this.points = this.entity.script.uranusHelperResizableSurface.children;
+  }
+
   for (let index = 0; index < this.points.length - 1; index++) {
     var point = this.points[index];
 
@@ -123,10 +140,10 @@ UranusHelperLineRenderer.prototype.prepareBezierLine = function (line) {
   this.p4.copy(line.endPoint);
 
   this.p2.lerp(this.p1, this.p4, this.bezierWeight);
-  this.p2.x = this.p1.x;
+  this.p2[this.bezierAxis] = this.p1[this.bezierAxis];
 
   this.p3.lerp(this.p4, this.p1, this.bezierWeight);
-  this.p3.x = this.p3.x;
+  this.p3[this.bezierAxis] = this.p3[this.bezierAxis];
 
   // --- spawn an instance
   return new Bezier(

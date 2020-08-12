@@ -88,7 +88,6 @@ UranusHelperEntityPicker.prototype.onSelect = function (event, clickType) {
       entity = entity.getParent();
     }
     if (entity && (!this.pickTag || entity.tags.has(this.pickTag) === true)) {
-      console.log(this.pickEvent, entity.name, clickType);
       this.app.fire(this.pickEvent, entity, clickType);
     }
   }

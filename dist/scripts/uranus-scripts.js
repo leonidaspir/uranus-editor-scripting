@@ -3604,7 +3604,7 @@ UranusHelperResizableSurface.attributes.add("inEditor", {
 });
 UranusHelperResizableSurface.attributes.add("target", {
     type: "entity",
-    title: "target",
+    title: "Target",
 });
 UranusHelperResizableSurface.attributes.add("children", {
     type: "entity",
@@ -3622,12 +3622,24 @@ UranusHelperResizableSurface.attributes.add("padding", {
     default: 0.1,
     title: "Padding",
 });
+UranusHelperResizableSurface.attributes.add("pivotPoint", {
+    type: "string",
+    default: "center",
+    title: "Pivot Point",
+    enum: [
+        { Center: "center" },
+        { "Top Left": "topLeft" },
+        { "Top Right": "topRight" },
+        { "Bottom Left": "bottomLeft" },
+        { "Bottom Right": "bottomRight" },
+    ],
+});
 UranusHelperResizableSurface.attributes.add("offset", {
     type: "vec3",
     default: [0, 0, 0],
     title: "Offset",
 });
-UranusHelperResizableSurface.attributes.add("minSize", {
+UranusHelperResizableSurface.attributes.add("minArea", {
     type: "vec3",
     default: [3, 3, 3],
     title: "Min Area",
@@ -3655,8 +3667,8 @@ UranusHelperResizableSurface.attributes.add("updatePerFrame", {
 UranusHelperResizableSurface.prototype.initialize = function () {
     // --- variables
     this.vec = new pc.Vec3();
+    this.vec2 = new pc.Vec3();
     this.aabb = new pc.BoundingBox();
-    this.initialScale = new pc.Vec3();
     // --- execute
     if (this.renderOnInit) {
         this.prepare();
@@ -3684,46 +3696,98 @@ UranusHelperResizableSurface.prototype.prepare = function (target, children) {
     if (!this.target) {
         return false;
     }
-    this.initialScale.copy(this.target.getLocalScale());
 };
 UranusHelperResizableSurface.prototype.updateSurface = function () {
     if (!this.target || !this.children) {
         return false;
     }
     // --- calculate the total bounding box
+    this.aabb.center.copy(this.entity.getPosition());
+    this.aabb.halfExtents.set(0.001, 0.001, 0.001);
     for (var i = 0; i < this.children.length; ++i) {
-        this.buildAabb(this.children[i], i);
+        this.buildAabb(this.children[i], i + 1);
     }
-    // --- position the surface
-    this.vec.copy(this.aabb.center).add(this.offset);
-    this.target.setPosition(this.vec);
     // --- scale the surface
-    this.vec.copy(this.aabb.halfExtents).scale(2 + this.padding / 2);
+    this.vec2.set(this.padding / 2, this.padding / 2, this.padding / 2);
+    this.vec.copy(this.aabb.halfExtents).scale(2).add(this.vec2);
     var lockedAxis;
     switch (this.alignPlane) {
         case "xz":
-            this.vec.y = this.initialScale.y;
+            this.vec.y = this.minArea.y;
             lockedAxis = "y";
             break;
         case "xy":
-            this.vec.z = this.initialScale.z;
+            this.vec.z = this.minArea.z;
             lockedAxis = "z";
             break;
         case "yz":
-            this.vec.x = this.initialScale.x;
+            this.vec.x = this.minArea.x;
             lockedAxis = "x";
             break;
     }
-    if (this.vec.x < this.minSize.x && lockedAxis !== "x") {
-        this.vec.x = this.minSize.x;
+    if (this.vec.x < this.minArea.x && lockedAxis !== "x") {
+        this.vec.x = this.minArea.x;
     }
-    if (this.vec.y < this.minSize.y && lockedAxis !== "y") {
-        this.vec.y = this.minSize.y;
+    if (this.vec.y < this.minArea.y && lockedAxis !== "y") {
+        this.vec.y = this.minArea.y;
     }
-    if (this.vec.z < this.minSize.z && lockedAxis !== "z") {
-        this.vec.z = this.minSize.z;
+    if (this.vec.z < this.minArea.z && lockedAxis !== "z") {
+        this.vec.z = this.minArea.z;
     }
     this.target.setLocalScale(this.vec);
+    // --- position the surface
+    this.vec2.copy(this.entity.getPosition()).add(this.offset);
+    //this.vec2[lockedAxis] -= this.vec[lockedAxis] + this.vec[lockedAxis] / 2;
+    this.target.setPosition(this.vec2);
+    // --- set pivot point
+    if (this.alignPlane === "xz") {
+        switch (this.pivotPoint) {
+            case "topLeft":
+                this.target.translate(-this.vec.x / 2, 0, this.vec.z / 2);
+                break;
+            case "topRight":
+                this.target.translate(-this.vec.x / 2, 0, -this.vec.z / 2);
+                break;
+            case "bottomLeft":
+                this.target.translate(this.vec.x / 2, 0, this.vec.z / 2);
+                break;
+            case "bottomRight":
+                this.target.translate(this.vec.x / 2, 0, -this.vec.z / 2);
+                break;
+        }
+    }
+    if (this.alignPlane === "xy") {
+        switch (this.pivotPoint) {
+            case "topLeft":
+                this.target.translate(this.vec.x / 2, -this.vec.y / 2, 0);
+                break;
+            case "topRight":
+                this.target.translate(-this.vec.x / 2, -this.vec.y / 2, 0);
+                break;
+            case "bottomLeft":
+                this.target.translate(this.vec.x / 2, this.vec.y / 2, 0);
+                break;
+            case "bottomRight":
+                this.target.translate(-this.vec.x / 2, this.vec.y / 2, 0);
+                break;
+        }
+    }
+    if (this.alignPlane === "yz") {
+        switch (this.pivotPoint) {
+            case "topLeft":
+                this.target.translate(0, -this.vec.y / 2, this.vec.z / 2);
+                break;
+            case "topRight":
+                this.target.translate(0, -this.vec.y / 2, -this.vec.z / 2);
+                break;
+            case "bottomLeft":
+                this.target.translate(0, this.vec.y / 2, this.vec.z / 2);
+                break;
+            case "bottomRight":
+                this.target.translate(0, this.vec.y / 2, -this.vec.z / 2);
+                break;
+        }
+    }
     // --- reorder children if required
     if (this.reorderChildren !== "none") {
         var primary = this.alignPlane[0];
@@ -3772,6 +3836,48 @@ UranusHelperResizableSurface.prototype.buildAabb = function (entity, modelsAdded
     }
     return modelsAdded;
 };
+var UranusNodeProperty = pc.createScript("uranusNodeProperty");
+UranusNodeProperty.attributes.add("inEditor", {
+    type: "boolean",
+    default: true,
+    title: "In Editor",
+});
+UranusNodeProperty.attributes.add("side", {
+    type: "string",
+    default: "right",
+    title: "Side",
+    enum: [{ Right: "right" }, { Bottom: "bottom" }, { Left: "left" }],
+});
+UranusNodeProperty.attributes.add("type", {
+    type: "string",
+    title: "Type",
+    description: "The type of node allowed to connect, if a category name is inserted multiple types of nodes can connect.",
+});
+UranusNodeProperty.attributes.add("array", {
+    type: "boolean",
+    default: false,
+    title: "Array",
+});
+UranusNodeProperty.attributes.add("target", {
+    type: "entity",
+    title: "Target",
+    description: "The entity that holds the node/nodes for this property. Leave blank to set this entity as target.",
+});
+var UranusNode = pc.createScript("uranusNode");
+UranusNode.attributes.add("inEditor", {
+    type: "boolean",
+    default: true,
+    title: "In Editor",
+});
+UranusNode.attributes.add("category", {
+    type: "string",
+    title: "Category",
+});
+UranusNode.attributes.add("properties", {
+    type: "entity",
+    array: true,
+    title: "Properties",
+});
 var UranusTerrainGenerateHeightmap = pc.createScript("uranusTerrainGenerateHeightmap");
 UranusTerrainGenerateHeightmap.attributes.add("inEditor", {
     type: "boolean",

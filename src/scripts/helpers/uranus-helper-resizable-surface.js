@@ -85,6 +85,7 @@ UranusHelperResizableSurface.prototype.initialize = function () {
   this.vec = new pc.Vec3();
   this.vec2 = new pc.Vec3();
   this.aabb = new pc.BoundingBox();
+  this.lockedAxis = undefined;
 
   // --- execute
   if (this.renderOnInit) {
@@ -145,17 +146,21 @@ UranusHelperResizableSurface.prototype.updateSurface = function () {
   switch (this.alignPlane) {
     case "xz":
       this.vec.y = this.minArea.y;
+      this.aabb.halfExtents.y = 0.001;
       lockedAxis = "y";
       break;
     case "xy":
       this.vec.z = this.minArea.z;
+      this.aabb.halfExtents.z = 0.001;
       lockedAxis = "z";
       break;
     case "yz":
       this.vec.x = this.minArea.x;
+      this.aabb.halfExtents.x = 0.001;
       lockedAxis = "x";
       break;
   }
+  this.lockedAxis = lockedAxis;
 
   if (this.vec.x < this.minArea.x && lockedAxis !== "x") {
     this.vec.x = this.minArea.x;
@@ -171,7 +176,6 @@ UranusHelperResizableSurface.prototype.updateSurface = function () {
 
   // --- position the surface
   this.vec2.copy(this.entity.getPosition()).add(this.offset);
-  //this.vec2[lockedAxis] -= this.vec[lockedAxis] + this.vec[lockedAxis] / 2;
   this.target.setPosition(this.vec2);
 
   // --- set pivot point
@@ -256,6 +260,15 @@ UranusHelperResizableSurface.prototype.updateSurface = function () {
       }.bind(this)
     );
   }
+
+  // --- add references to uranus node scripts
+  this.children.forEach(
+    function (child) {
+      if (child && child.script && child.script.uranusNode) {
+        child.script.uranusNode.uranusSurface = this;
+      }
+    }.bind(this)
+  );
 };
 
 UranusHelperResizableSurface.prototype.buildAabb = function (

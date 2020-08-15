@@ -3390,10 +3390,10 @@ UranusHelperEntityPicker.attributes.add("camera", {
     type: "entity",
     title: "Camera",
 });
-UranusHelperEntityPicker.attributes.add("pickTag", {
+UranusHelperEntityPicker.attributes.add("pickTags", {
     type: "string",
     default: "uranus-pickable",
-    title: "Pick Tack",
+    title: "Pick Tags",
     description: "If a tag is provided, only entities with that tag will be picked.",
 });
 UranusHelperEntityPicker.attributes.add("pickEvent", {
@@ -3406,17 +3406,24 @@ UranusHelperEntityPicker.attributes.add("pickEvent", {
 UranusHelperEntityPicker.prototype.initialize = function () {
     this.picker = new pc.Picker(this.app.graphicsDevice, this.app.graphicsDevice.canvas.width, this.app.graphicsDevice.canvas.height);
     this.app.mouse.on(pc.EVENT_MOUSEDOWN, this.onMouseDown, this);
+    this.app.mouse.on(pc.EVENT_MOUSEMOVE, this.onMouseMove, this);
     this.app.mouse.on(pc.EVENT_MOUSEUP, this.onMouseUp, this);
     if (this.app.touch) {
         this.app.touch.on(pc.EVENT_TOUCHSTART, this.onTouchStart, this);
+        this.app.touch.on(pc.EVENT_TOUCHMOVE, this.onTouchMove, this);
         this.app.touch.on(pc.EVENT_TOUCHEND, this.onTouchEnd, this);
     }
     // --- events
     this.app.graphicsDevice.on("resizecanvas", this.onResize.bind(this));
 };
+UranusHelperEntityPicker.pickerCoords = new pc.Vec2();
 UranusHelperEntityPicker.prototype.onMouseDown = function (e) {
     e.event.preventDefault();
     this.onSelect(e, "clickDown");
+};
+UranusHelperEntityPicker.prototype.onMouseMove = function (e) {
+    e.event.preventDefault();
+    UranusHelperEntityPicker.pickerCoords.set(e.x, e.y);
 };
 UranusHelperEntityPicker.prototype.onMouseUp = function (e) {
     e.event.preventDefault();
@@ -3424,6 +3431,10 @@ UranusHelperEntityPicker.prototype.onMouseUp = function (e) {
 };
 UranusHelperEntityPicker.prototype.onTouchStart = function (e) {
     this.onSelect(e.touches[0], "clickDown");
+    e.event.preventDefault();
+};
+UranusHelperEntityPicker.prototype.onTouchMove = function (e) {
+    UranusHelperEntityPicker.pickerCoords.set(e.touches[0].x, e.touches[0].y);
     e.event.preventDefault();
 };
 UranusHelperEntityPicker.prototype.onTouchEnd = function (e) {
@@ -3446,8 +3457,23 @@ UranusHelperEntityPicker.prototype.onSelect = function (event, clickType) {
         while (!(entity instanceof pc.Entity) && entity !== null) {
             entity = entity.getParent();
         }
-        if (entity && (!this.pickTag || entity.tags.has(this.pickTag) === true)) {
-            this.app.fire(this.pickEvent, entity, clickType);
+        // --- has tag
+        var hasTag = false;
+        if (this.pickTags) {
+            var pickTags = this.pickTags.split(",");
+            var entityTags = entity.tags.list();
+            for (var i = 0; i < entityTags.length; i++) {
+                if (pickTags.indexOf(entityTags[i]) > -1) {
+                    hasTag = true;
+                    break;
+                }
+            }
+        }
+        if (entity && (!this.pickTags || hasTag === true)) {
+            this.app.fire(this.pickEvent, entity, clickType, this.camera, this.clickCoords);
+        }
+        else {
+            this.app.fire(this.pickEvent, null, clickType, this.camera, this.clickCoords);
         }
     }
 };
@@ -3669,6 +3695,7 @@ UranusHelperResizableSurface.prototype.initialize = function () {
     this.vec = new pc.Vec3();
     this.vec2 = new pc.Vec3();
     this.aabb = new pc.BoundingBox();
+    this.lockedAxis = undefined;
     // --- execute
     if (this.renderOnInit) {
         this.prepare();
@@ -3714,17 +3741,21 @@ UranusHelperResizableSurface.prototype.updateSurface = function () {
     switch (this.alignPlane) {
         case "xz":
             this.vec.y = this.minArea.y;
+            this.aabb.halfExtents.y = 0.001;
             lockedAxis = "y";
             break;
         case "xy":
             this.vec.z = this.minArea.z;
+            this.aabb.halfExtents.z = 0.001;
             lockedAxis = "z";
             break;
         case "yz":
             this.vec.x = this.minArea.x;
+            this.aabb.halfExtents.x = 0.001;
             lockedAxis = "x";
             break;
     }
+    this.lockedAxis = lockedAxis;
     if (this.vec.x < this.minArea.x && lockedAxis !== "x") {
         this.vec.x = this.minArea.x;
     }
@@ -3737,7 +3768,6 @@ UranusHelperResizableSurface.prototype.updateSurface = function () {
     this.target.setLocalScale(this.vec);
     // --- position the surface
     this.vec2.copy(this.entity.getPosition()).add(this.offset);
-    //this.vec2[lockedAxis] -= this.vec[lockedAxis] + this.vec[lockedAxis] / 2;
     this.target.setPosition(this.vec2);
     // --- set pivot point
     if (this.alignPlane === "xz") {
@@ -3816,6 +3846,12 @@ UranusHelperResizableSurface.prototype.updateSurface = function () {
             }
         }.bind(this));
     }
+    // --- add references to uranus node scripts
+    this.children.forEach(function (child) {
+        if (child && child.script && child.script.uranusNode) {
+            child.script.uranusNode.uranusSurface = this;
+        }
+    }.bind(this));
 };
 UranusHelperResizableSurface.prototype.buildAabb = function (entity, modelsAdded) {
     var i = 0;
@@ -3878,6 +3914,57 @@ UranusNode.attributes.add("properties", {
     array: true,
     title: "Properties",
 });
+UranusNode.prototype.initialize = function () {
+    // --- variables
+    this.ray = new pc.Ray();
+    this.hitPosition = new pc.Vec3();
+    this.pickerCamera = undefined;
+    this.moving = false;
+    this.selected = false;
+    this.uranusSurface = undefined;
+    this.initialPos = this.entity.getPosition().clone();
+    // --- events
+    this.app.on("uranusEntityPicker:picked", this.onNodePicked, this);
+};
+UranusNode.prototype.update = function () {
+    if (this.moving) {
+        this.nodeMove();
+    }
+};
+UranusNode.prototype.onNodePicked = function (entity, pickType, pickerCamera, pickerCoords) {
+    // --- check if no entity has been selected
+    if (!entity) {
+        this.moving = false;
+        return false;
+    }
+    // --- check if the selected entity is the script entity
+    if (this.entity._guid !== entity._guid) {
+        return false;
+    }
+    switch (pickType) {
+        case "clickDown":
+            this.moving = true;
+            break;
+        case "click":
+            this.moving = false;
+            break;
+    }
+    this.pickerCamera = pickerCamera;
+};
+UranusNode.prototype.nodeMove = function () {
+    if (!this.pickerCamera) {
+        return false;
+    }
+    this.pickerCamera.camera.screenToWorld(UranusHelperEntityPicker.pickerCoords.x, UranusHelperEntityPicker.pickerCoords.y, this.pickerCamera.camera.farClip, this.ray.direction);
+    this.ray.origin.copy(this.pickerCamera.getPosition());
+    this.ray.direction.sub(this.ray.origin).normalize();
+    // Test the ray against the ground
+    var result = this.uranusSurface.aabb.intersectsRay(this.ray, this.hitPosition);
+    if (result) {
+        this.hitPosition[this.uranusSurface.lockedAxis] = this.initialPos[this.uranusSurface.lockedAxis];
+        this.entity.setPosition(this.hitPosition);
+    }
+};
 var UranusTerrainGenerateHeightmap = pc.createScript("uranusTerrainGenerateHeightmap");
 UranusTerrainGenerateHeightmap.attributes.add("inEditor", {
     type: "boolean",

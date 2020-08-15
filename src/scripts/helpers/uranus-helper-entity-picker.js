@@ -5,10 +5,10 @@ UranusHelperEntityPicker.attributes.add("camera", {
   title: "Camera",
 });
 
-UranusHelperEntityPicker.attributes.add("pickTag", {
+UranusHelperEntityPicker.attributes.add("pickTags", {
   type: "string",
   default: "uranus-pickable",
-  title: "Pick Tack",
+  title: "Pick Tags",
   description:
     "If a tag is provided, only entities with that tag will be picked.",
 });
@@ -28,10 +28,12 @@ UranusHelperEntityPicker.prototype.initialize = function () {
     this.app.graphicsDevice.canvas.height
   );
   this.app.mouse.on(pc.EVENT_MOUSEDOWN, this.onMouseDown, this);
+  this.app.mouse.on(pc.EVENT_MOUSEMOVE, this.onMouseMove, this);
   this.app.mouse.on(pc.EVENT_MOUSEUP, this.onMouseUp, this);
 
   if (this.app.touch) {
     this.app.touch.on(pc.EVENT_TOUCHSTART, this.onTouchStart, this);
+    this.app.touch.on(pc.EVENT_TOUCHMOVE, this.onTouchMove, this);
     this.app.touch.on(pc.EVENT_TOUCHEND, this.onTouchEnd, this);
   }
 
@@ -39,10 +41,18 @@ UranusHelperEntityPicker.prototype.initialize = function () {
   this.app.graphicsDevice.on("resizecanvas", this.onResize.bind(this));
 };
 
+UranusHelperEntityPicker.pickerCoords = new pc.Vec2();
+
 UranusHelperEntityPicker.prototype.onMouseDown = function (e) {
   e.event.preventDefault();
 
   this.onSelect(e, "clickDown");
+};
+
+UranusHelperEntityPicker.prototype.onMouseMove = function (e) {
+  e.event.preventDefault();
+
+  UranusHelperEntityPicker.pickerCoords.set(e.x, e.y);
 };
 
 UranusHelperEntityPicker.prototype.onMouseUp = function (e) {
@@ -53,6 +63,12 @@ UranusHelperEntityPicker.prototype.onMouseUp = function (e) {
 
 UranusHelperEntityPicker.prototype.onTouchStart = function (e) {
   this.onSelect(e.touches[0], "clickDown");
+
+  e.event.preventDefault();
+};
+
+UranusHelperEntityPicker.prototype.onTouchMove = function (e) {
+  UranusHelperEntityPicker.pickerCoords.set(e.touches[0].x, e.touches[0].y);
 
   e.event.preventDefault();
 };
@@ -87,8 +103,36 @@ UranusHelperEntityPicker.prototype.onSelect = function (event, clickType) {
     while (!(entity instanceof pc.Entity) && entity !== null) {
       entity = entity.getParent();
     }
-    if (entity && (!this.pickTag || entity.tags.has(this.pickTag) === true)) {
-      this.app.fire(this.pickEvent, entity, clickType);
+
+    // --- has tag
+    let hasTag = false;
+    if (this.pickTags) {
+      const pickTags = this.pickTags.split(",");
+      const entityTags = entity.tags.list();
+      for (let i = 0; i < entityTags.length; i++) {
+        if (pickTags.indexOf(entityTags[i]) > -1) {
+          hasTag = true;
+          break;
+        }
+      }
+    }
+
+    if (entity && (!this.pickTags || hasTag === true)) {
+      this.app.fire(
+        this.pickEvent,
+        entity,
+        clickType,
+        this.camera,
+        this.clickCoords
+      );
+    } else {
+      this.app.fire(
+        this.pickEvent,
+        null,
+        clickType,
+        this.camera,
+        this.clickCoords
+      );
     }
   }
 };

@@ -20,7 +20,9 @@ UranusNode.attributes.add("properties", {
 UranusNode.prototype.initialize = function () {
   // --- variables
   this.ray = new pc.Ray();
+  this.vec = new pc.Vec3();
   this.hitPosition = new pc.Vec3();
+  this.plane = new pc.Plane();
   this.pickerCamera = undefined;
   this.moving = false;
   this.selected = false;
@@ -37,12 +39,7 @@ UranusNode.prototype.update = function () {
   }
 };
 
-UranusNode.prototype.onNodePicked = function (
-  entity,
-  pickType,
-  pickerCamera,
-  pickerCoords
-) {
+UranusNode.prototype.onNodePicked = function (entity, pickType, pickerCamera) {
   // --- check if no entity has been selected
   if (!entity) {
     this.moving = false;
@@ -81,17 +78,37 @@ UranusNode.prototype.nodeMove = function () {
   this.ray.origin.copy(this.pickerCamera.getPosition());
   this.ray.direction.sub(this.ray.origin).normalize();
 
-  // Test the ray against the ground
-  var result = this.uranusSurface.aabb.intersectsRay(
-    this.ray,
-    this.hitPosition
-  );
+  // Test the ray against the surface plane
+  this.uranusSurface.getSurfacePlane(this.plane);
+
+  var result = this.plane.intersectsRay(this.ray, this.hitPosition);
 
   if (result) {
-    this.hitPosition[this.uranusSurface.lockedAxis] = this.initialPos[
+    var currentPos = this.entity.getPosition();
+    this.vec.copy(currentPos);
+
+    this.vec[this.uranusSurface.lockedAxis] = this.initialPos[
       this.uranusSurface.lockedAxis
     ];
 
-    this.entity.setPosition(this.hitPosition);
+    this.vec.x = this.hitPosition.x;
+
+    if (this.uranusSurface.isSurfacePointAllowed(this.vec) === false) {
+      this.vec.x = currentPos.x;
+    }
+
+    this.vec.y = this.hitPosition.y;
+
+    if (this.uranusSurface.isSurfacePointAllowed(this.vec) === false) {
+      this.vec.y = currentPos.y;
+    }
+
+    this.vec.z = this.hitPosition.z;
+
+    if (this.uranusSurface.isSurfacePointAllowed(this.vec) === false) {
+      this.vec.z = currentPos.z;
+    }
+
+    this.entity.setPosition(this.vec);
   }
 };

@@ -296,3 +296,81 @@ UranusHelperResizableSurface.prototype.buildAabb = function (
 
   return modelsAdded;
 };
+
+UranusHelperResizableSurface.prototype.getSurfacePlane = function (plane) {
+  if (!plane) {
+    return;
+  }
+
+  plane.point.copy(this.entity.getPosition());
+
+  switch (this.alignPlane) {
+    case "xz":
+      plane.normal.set(0, 1, 0);
+      break;
+    case "xy":
+      plane.normal.set(0, 0, 1);
+      break;
+    case "yz":
+      plane.normal.set(1, 0, 0);
+      break;
+  }
+
+  return plane;
+};
+
+UranusHelperResizableSurface.prototype.isSurfacePointAllowed = function (
+  point
+) {
+  var surfacePos = this.entity.getPosition();
+
+  switch (this.pivotPoint) {
+    case "topLeft":
+      if (
+        point.x > surfacePos.x ||
+        point.y > surfacePos.y ||
+        point.z < surfacePos.z
+      ) {
+        return false;
+      }
+      break;
+    case "topRight":
+      if (
+        point.x > surfacePos.x ||
+        point.y > surfacePos.y ||
+        point.z > surfacePos.z
+      ) {
+        return false;
+      }
+      break;
+    case "bottomLeft":
+      if (
+        point.x < surfacePos.x ||
+        point.y < surfacePos.y ||
+        point.z < surfacePos.z
+      ) {
+        return false;
+      }
+      break;
+    case "bottomRight":
+      if (
+        point.x < surfacePos.x ||
+        point.y < surfacePos.y ||
+        point.z > surfacePos.z
+      ) {
+        return false;
+      }
+      break;
+  }
+
+  return true;
+
+  // switch (this.alignPlane) {
+  //   case "xz":
+  //     break;
+  //   case "xy":
+  //     break;
+  //   case "yz":
+  //     break;
+  // }
+};

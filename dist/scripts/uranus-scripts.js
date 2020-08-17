@@ -3470,10 +3470,10 @@ UranusHelperEntityPicker.prototype.onSelect = function (event, clickType) {
             }
         }
         if (entity && (!this.pickTags || hasTag === true)) {
-            this.app.fire(this.pickEvent, entity, clickType, this.camera, this.clickCoords);
+            this.app.fire(this.pickEvent, entity, clickType, this.camera);
         }
         else {
-            this.app.fire(this.pickEvent, null, clickType, this.camera, this.clickCoords);
+            this.app.fire(this.pickEvent, null, clickType, this.camera);
         }
     }
 };
@@ -3872,6 +3872,66 @@ UranusHelperResizableSurface.prototype.buildAabb = function (entity, modelsAdded
     }
     return modelsAdded;
 };
+UranusHelperResizableSurface.prototype.getSurfacePlane = function (plane) {
+    if (!plane) {
+        return;
+    }
+    plane.point.copy(this.entity.getPosition());
+    switch (this.alignPlane) {
+        case "xz":
+            plane.normal.set(0, 1, 0);
+            break;
+        case "xy":
+            plane.normal.set(0, 0, 1);
+            break;
+        case "yz":
+            plane.normal.set(1, 0, 0);
+            break;
+    }
+    return plane;
+};
+UranusHelperResizableSurface.prototype.isSurfacePointAllowed = function (point) {
+    var surfacePos = this.entity.getPosition();
+    switch (this.pivotPoint) {
+        case "topLeft":
+            if (point.x > surfacePos.x ||
+                point.y > surfacePos.y ||
+                point.z < surfacePos.z) {
+                return false;
+            }
+            break;
+        case "topRight":
+            if (point.x > surfacePos.x ||
+                point.y > surfacePos.y ||
+                point.z > surfacePos.z) {
+                return false;
+            }
+            break;
+        case "bottomLeft":
+            if (point.x < surfacePos.x ||
+                point.y < surfacePos.y ||
+                point.z < surfacePos.z) {
+                return false;
+            }
+            break;
+        case "bottomRight":
+            if (point.x < surfacePos.x ||
+                point.y < surfacePos.y ||
+                point.z > surfacePos.z) {
+                return false;
+            }
+            break;
+    }
+    return true;
+    // switch (this.alignPlane) {
+    //   case "xz":
+    //     break;
+    //   case "xy":
+    //     break;
+    //   case "yz":
+    //     break;
+    // }
+};
 var UranusNodeProperty = pc.createScript("uranusNodeProperty");
 UranusNodeProperty.attributes.add("inEditor", {
     type: "boolean",
@@ -3917,7 +3977,9 @@ UranusNode.attributes.add("properties", {
 UranusNode.prototype.initialize = function () {
     // --- variables
     this.ray = new pc.Ray();
+    this.vec = new pc.Vec3();
     this.hitPosition = new pc.Vec3();
+    this.plane = new pc.Plane();
     this.pickerCamera = undefined;
     this.moving = false;
     this.selected = false;
@@ -3931,7 +3993,7 @@ UranusNode.prototype.update = function () {
         this.nodeMove();
     }
 };
-UranusNode.prototype.onNodePicked = function (entity, pickType, pickerCamera, pickerCoords) {
+UranusNode.prototype.onNodePicked = function (entity, pickType, pickerCamera) {
     // --- check if no entity has been selected
     if (!entity) {
         this.moving = false;
@@ -3958,11 +4020,26 @@ UranusNode.prototype.nodeMove = function () {
     this.pickerCamera.camera.screenToWorld(UranusHelperEntityPicker.pickerCoords.x, UranusHelperEntityPicker.pickerCoords.y, this.pickerCamera.camera.farClip, this.ray.direction);
     this.ray.origin.copy(this.pickerCamera.getPosition());
     this.ray.direction.sub(this.ray.origin).normalize();
-    // Test the ray against the ground
-    var result = this.uranusSurface.aabb.intersectsRay(this.ray, this.hitPosition);
+    // Test the ray against the surface plane
+    this.uranusSurface.getSurfacePlane(this.plane);
+    var result = this.plane.intersectsRay(this.ray, this.hitPosition);
     if (result) {
-        this.hitPosition[this.uranusSurface.lockedAxis] = this.initialPos[this.uranusSurface.lockedAxis];
-        this.entity.setPosition(this.hitPosition);
+        var currentPos = this.entity.getPosition();
+        this.vec.copy(currentPos);
+        this.vec[this.uranusSurface.lockedAxis] = this.initialPos[this.uranusSurface.lockedAxis];
+        this.vec.x = this.hitPosition.x;
+        if (this.uranusSurface.isSurfacePointAllowed(this.vec) === false) {
+            this.vec.x = currentPos.x;
+        }
+        this.vec.y = this.hitPosition.y;
+        if (this.uranusSurface.isSurfacePointAllowed(this.vec) === false) {
+            this.vec.y = currentPos.y;
+        }
+        this.vec.z = this.hitPosition.z;
+        if (this.uranusSurface.isSurfacePointAllowed(this.vec) === false) {
+            this.vec.z = currentPos.z;
+        }
+        this.entity.setPosition(this.vec);
     }
 };
 var UranusTerrainGenerateHeightmap = pc.createScript("uranusTerrainGenerateHeightmap");

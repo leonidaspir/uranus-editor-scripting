@@ -118,21 +118,9 @@ UranusHelperEntityPicker.prototype.onSelect = function (event, clickType) {
     }
 
     if (entity && (!this.pickTags || hasTag === true)) {
-      this.app.fire(
-        this.pickEvent,
-        entity,
-        clickType,
-        this.camera,
-        this.clickCoords
-      );
+      this.app.fire(this.pickEvent, entity, clickType, this.camera);
     } else {
-      this.app.fire(
-        this.pickEvent,
-        null,
-        clickType,
-        this.camera,
-        this.clickCoords
-      );
+      this.app.fire(this.pickEvent, null, clickType, this.camera);
     }
   }
 };

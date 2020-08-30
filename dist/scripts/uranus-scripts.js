@@ -2568,12 +2568,26 @@ UranusEditorEntitiesPaint.attributes.add("hardwareInstancing", {
     default: false,
     title: "Hardware Instancing",
 });
+UranusEditorEntitiesPaint.attributes.add("cullingCamera", {
+    type: "entity",
+    title: "Culling Camera",
+});
 UranusEditorEntitiesPaint.prototype.initialize = function () {
     this.vec = new pc.Vec3();
     this.vec1 = new pc.Vec3();
     this.vec2 = new pc.Vec3();
-    this.enableHardwareInstancing();
-    this.updateHardwareInstancing();
+    this.tempSphere = { center: null, radius: 0.5 };
+    if (this.hardwareInstancing) {
+        this.enableHardwareInstancing();
+        this.updateHardwareInstancing();
+    }
+};
+UranusEditorEntitiesPaint.prototype.update = function (dt) {
+    if (this.hardwareInstancing &&
+        this.cullingCamera &&
+        this.cullingCamera.camera) {
+        this.cullHardwareInstancing();
+    }
 };
 UranusEditorEntitiesPaint.prototype.editorInitialize = function () {
     // --- variables
@@ -2961,13 +2975,16 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
     var entities = this.spawnEntity.children[0] instanceof pc.Entity
         ? this.spawnEntity.children
         : [this.spawnEntity];
-    var instanceCount = this.entity.children.length;
     var matrix = new pc.Mat4();
     entities.forEach(function (spawnEntity) {
         if (!spawnEntity.model)
             return true;
         var spawnScale = spawnEntity.getLocalScale();
         spawnEntity.model.meshInstances.forEach(function (meshInstance) {
+            // --- calculate number of instances
+            instances = this.entity.find(function (child) {
+                return child.name === spawnEntity.name;
+            });
             // --- calculate pivot offset
             var offset = this.vec
                 .copy(meshInstance.aabb.center)
@@ -2976,10 +2993,12 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
             offset.y /= spawnScale.y;
             offset.z /= spawnScale.z;
             // --- store matrices for individual instances into array
-            var matrices = new Float32Array(instanceCount * 16);
+            var matrices = new Float32Array(instances.length * 16);
+            var boundingsOriginal = [];
+            var visibleOriginal = [];
             var matrixIndex = 0;
-            for (var i = 0; i < instanceCount; i++) {
-                var instance = this.entity.children[i];
+            for (var i = 0; i < instances.length; i++) {
+                var instance = instances[i];
                 // --- check if we are interested in this mesh instance
                 if (instance.name !== spawnEntity.name)
                     continue;
@@ -2989,18 +3008,58 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                 this.vec1.x += offset.x * scale.x;
                 this.vec1.y += offset.y * scale.y;
                 this.vec1.z += offset.z * scale.z;
+                visibleOriginal.push(1);
+                boundingsOriginal.push(new pc.BoundingSphere(this.vec1.clone(), meshInstance._aabb.halfExtents.length()));
                 matrix.setTRS(this.vec1, instance.getRotation(), scale);
                 // copy matrix elements into array of floats
-                for (var m = 0; m < 16; m++)
-                    matrices[matrixIndex++] = matrix.data[m];
+                for (var m = 0; m < 16; m++) {
+                    matrices[matrixIndex] = matrix.data[m];
+                    matrixIndex++;
+                }
             }
             // --- create the vertex buffer
             if (meshInstance.instancingData &&
                 meshInstance.instancingData.vertexBuffer) {
                 meshInstance.instancingData.vertexBuffer.destroy();
             }
-            var vertexBuffer = new pc.VertexBuffer(this.app.graphicsDevice, pc.VertexFormat.defaultInstancingFormat, instanceCount, pc.BUFFER_STATIC, matrices);
+            var vertexBuffer = new pc.VertexBuffer(this.app.graphicsDevice, pc.VertexFormat.defaultInstancingFormat, instances.length, pc.BUFFER_STATIC, matrices);
             meshInstance.setInstancing(vertexBuffer);
+            meshInstance.cullingData = {
+                count: instances.length,
+                boundings: boundingsOriginal,
+                visible: visibleOriginal,
+            };
+        }.bind(this));
+    }.bind(this));
+};
+UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
+    var entities = this.spawnEntity.children[0] instanceof pc.Entity
+        ? this.spawnEntity.children
+        : [this.spawnEntity];
+    var frustum = this.cullingCamera.camera.frustum;
+    entities.forEach(function (spawnEntity) {
+        if (!spawnEntity.model)
+            return true;
+        spawnEntity.model.meshInstances.forEach(function (meshInstance) {
+            var boundings = meshInstance.cullingData.boundings;
+            var visibleList = meshInstance.cullingData.visible;
+            // --- find visible instances
+            var visibleCount = 0;
+            for (var i = 0; i < meshInstance.cullingData.count; i++) {
+                var bounding = boundings[i];
+                var visible = frustum.containsSphere(bounding);
+                visibleList[i] = visible > 0 ? 1 : 0;
+                if (visibleList[i] === 1) {
+                    visibleCount++;
+                }
+            }
+            // --- we sort the matrices based on their visibility
+            var matrices = meshInstance.instancingData.vertexBuffer.storage;
+            matrices.sort(function (a, b) {
+                return visibleList.indexOf(a) - visibleList.indexOf(b);
+            });
+            meshInstance.instancingData.vertexBuffer.storage = matrices.subarray(0, visibleCount - 1);
+            meshInstance.instancingData.count = visibleCount;
         }.bind(this));
     }.bind(this));
 };

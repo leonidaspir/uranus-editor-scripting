@@ -135,8 +135,6 @@ UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (
 ) {
   var containerEl = element.firstChild;
 
-  console.log(containerEl);
-
   // --- bake button the instances as editor items
   var btnBuild = new ui.Button({
     text: "+ Paint",
@@ -630,8 +628,8 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
 
           // --- store matrices for individual instances into array
           var matrices = new Float32Array(instances.length * 16);
+          var matricesList = [];
           var boundingsOriginal = [];
-          var visibleOriginal = [];
 
           var matrixIndex = 0;
           for (var i = 0; i < instances.length; i++) {
@@ -648,14 +646,6 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
             this.vec1.y += offset.y * scale.y;
             this.vec1.z += offset.z * scale.z;
 
-            visibleOriginal.push(1);
-            boundingsOriginal.push(
-              new pc.BoundingSphere(
-                this.vec1.clone(),
-                meshInstance._aabb.halfExtents.length()
-              )
-            );
-
             matrix.setTRS(this.vec1, instance.getRotation(), scale);
 
             // copy matrix elements into array of floats
@@ -663,6 +653,15 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
               matrices[matrixIndex] = matrix.data[m];
               matrixIndex++;
             }
+
+            // --- save culling data
+            matricesList[i] = matrix.clone();
+
+            var bounding = new pc.BoundingSphere(
+              this.vec1.clone(),
+              meshInstance._aabb.halfExtents.length() * 2
+            );
+            boundingsOriginal[i] = bounding;
           }
 
           // --- create the vertex buffer
@@ -685,7 +684,8 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
           meshInstance.cullingData = {
             count: instances.length,
             boundings: boundingsOriginal,
-            visible: visibleOriginal,
+            matrices: matrices.slice(0),
+            matricesList: matricesList,
           };
         }.bind(this)
       );
@@ -708,36 +708,45 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
       spawnEntity.model.meshInstances.forEach(
         function (meshInstance) {
           var boundings = meshInstance.cullingData.boundings;
-          var visibleList = meshInstance.cullingData.visible;
+
+          var matrices = meshInstance.cullingData.matrices;
+          var matricesList = meshInstance.cullingData.matricesList;
 
           // --- find visible instances
           var visibleCount = 0;
+          var matrixIndex = 0;
 
           for (var i = 0; i < meshInstance.cullingData.count; i++) {
             var bounding = boundings[i];
 
             var visible = frustum.containsSphere(bounding);
-            console.log(visible);
-            visibleList[i] = visible > 0 ? 1 : 0;
 
-            if (visibleList[i] === 1) {
+            if (visible > 0) {
               visibleCount++;
+
+              var matrix = matricesList[i];
+
+              for (var m = 0; m < 16; m++) {
+                matrices[matrixIndex] = matrix.data[m];
+                matrixIndex++;
+              }
             }
           }
 
-          // --- we sort the matrices based on their visibility
-          var matrices = meshInstance.instancingData.vertexBuffer.storage;
+          var subarray = matrices.subarray(0, matrixIndex);
 
-          matrices.sort(function (a, b) {
-            return visibleList.indexOf(a) - visibleList.indexOf(b);
-          });
+          // ToDo revert to using dynamic/stream buffers for culling
+          meshInstance.instancingData.vertexBuffer.destroy();
 
-          meshInstance.instancingData.vertexBuffer.storage = matrices.subarray(
-            0,
-            visibleCount - 1
+          var vertexBuffer = new pc.VertexBuffer(
+            this.app.graphicsDevice,
+            pc.VertexFormat.defaultInstancingFormat,
+            visibleCount,
+            pc.BUFFER_STATIC,
+            subarray
           );
 
-          meshInstance.instancingData.count = visibleCount;
+          meshInstance.setInstancing(vertexBuffer);
         }.bind(this)
       );
     }.bind(this)

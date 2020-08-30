@@ -96,7 +96,7 @@ export async function batchExecuteScripts(this: Editor) {
 
         if (element) {
           try {
-            element = element.parentElement.nextSibling;
+            element = element.parentElement.parentElement.parentElement;
 
             if (element) {
               const instance = instancesRef.instances[index];

@@ -135,6 +135,8 @@ UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (
 ) {
   var containerEl = element.firstChild;
 
+  console.log(containerEl);
+
   // --- bake button the instances as editor items
   var btnBuild = new ui.Button({
     text: "+ Paint",
@@ -715,6 +717,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
             var bounding = boundings[i];
 
             var visible = frustum.containsSphere(bounding);
+            console.log(visible);
             visibleList[i] = visible > 0 ? 1 : 0;
 
             if (visibleList[i] === 1) {

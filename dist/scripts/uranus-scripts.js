@@ -2547,6 +2547,12 @@ UranusEditorEntitiesPaint.attributes.add("posOffset", {
     default: [0.0, 0.0, 0.0],
     title: "Pos Offset",
 });
+UranusEditorEntitiesPaint.attributes.add("projectOffset", {
+    type: "boolean",
+    default: true,
+    title: "Project Offset",
+    description: "If enabled the offset will be projected to the final calculated scale of the instance.",
+});
 UranusEditorEntitiesPaint.attributes.add("rotateThem", {
     type: "string",
     enum: [
@@ -2582,6 +2588,12 @@ UranusEditorEntitiesPaint.attributes.add("cullingCamera", {
     type: "entity",
     title: "Culling Camera",
 });
+UranusEditorEntitiesPaint.attributes.add("isStatic", {
+    type: "boolean",
+    default: false,
+    title: "Is Static",
+    description: "When hardware instancing is enabled, checking this flag will provide a performance increase since no translations will be updated on runtime.",
+});
 UranusEditorEntitiesPaint.prototype.initialize = function () {
     this.vec = new pc.Vec3();
     this.vec1 = new pc.Vec3();
@@ -2599,9 +2611,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     }
 };
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
-    if (this.hardwareInstancing &&
-        this.cullingCamera &&
-        this.cullingCamera.camera) {
+    if (this.hardwareInstancing) {
         this.cullHardwareInstancing();
     }
 };
@@ -2649,7 +2659,7 @@ UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (element)
         this.setBuildingState(btnBuild);
     }.bind(this));
     containerEl.append(btnBuild.element);
-    this.setBuildingState(btnBuild);
+    this.setBuildingState(btnBuild, true);
     var btnErase = new ui.Button({
         text: "- Erase",
     });
@@ -2662,7 +2672,7 @@ UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (element)
         this.setEraseState(btnErase);
     }.bind(this));
     containerEl.append(btnErase.element);
-    this.setEraseState(btnErase);
+    this.setEraseState(btnErase, true);
     // --- clear button for removing all entity children
     var btnClearInstances = new ui.Button({
         text: "- Clear All Instances",
@@ -2671,31 +2681,38 @@ UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (element)
     containerEl.append(btnClearInstances.element);
 };
 UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value) {
-    if (!this.building)
-        return;
-    this.setGizmoState(false);
-    this.setGizmoState(true);
+    if (this.building) {
+        this.setGizmoState(false);
+        this.setGizmoState(true);
+    }
     if (property === "hardwareInstancing") {
         this.enableHardwareInstancing();
     }
+    if (property === "lodLevels") {
+        this.lodDistance = [value.x, value.y, value.z, value.w];
+    }
 };
-UranusEditorEntitiesPaint.prototype.setBuildingState = function (btnBuild) {
+UranusEditorEntitiesPaint.prototype.setBuildingState = function (btnBuild, dontTrigger) {
     if (this.buildButtonState) {
-        this.startBuilding();
+        if (!dontTrigger)
+            this.startBuilding();
         btnBuild.element.classList.add("active-entities-painter-button");
     }
     else {
-        this.stopBuilding();
+        if (!dontTrigger)
+            this.stopBuilding();
         btnBuild.element.classList.remove("active-entities-painter-button");
     }
 };
-UranusEditorEntitiesPaint.prototype.setEraseState = function (btnErase) {
+UranusEditorEntitiesPaint.prototype.setEraseState = function (btnErase, dontTrigger) {
     if (this.eraseButtonState) {
-        this.startBuilding();
+        if (!dontTrigger)
+            this.startBuilding();
         btnErase.element.classList.add("active-entities-painter-button");
     }
     else {
-        this.stopBuilding();
+        if (!dontTrigger)
+            this.stopBuilding();
         btnErase.element.classList.remove("active-entities-painter-button");
     }
 };
@@ -2711,6 +2728,9 @@ UranusEditorEntitiesPaint.prototype.startBuilding = function () {
     this.setInputState(true);
     // --- enable gizmo
     this.setGizmoState(true);
+    // --- clear history to allow undo/redo to work without selecting a different entity
+    var history = editor.call("editor:history");
+    history.clear();
 };
 UranusEditorEntitiesPaint.prototype.stopBuilding = function () {
     if (this.building === false)
@@ -2741,18 +2761,34 @@ UranusEditorEntitiesPaint.prototype.setGizmoState = function (state) {
     }
 };
 UranusEditorEntitiesPaint.prototype.setInputState = function (state) {
+    var history = editor.call("editor:history");
     if (state === true) {
         this.app.mouse.on(pc.EVENT_MOUSEDOWN, this.onMouseDown, this);
         this.app.mouse.on(pc.EVENT_MOUSEMOVE, this.onMouseMove, this);
         this.app.mouse.on(pc.EVENT_MOUSEUP, this.onMouseUp, this);
-        //this.keyUpListener = this.onKeyUp.bind(this);
-        //window.addEventListener("keyup", this.keyUpListener, true);
+        this.historyUndoRef = this.onHistoryUndo.bind(this);
+        this.historyRedoRef = this.onHistoryRedo.bind(this);
+        history.on("undo", this.historyUndoRef);
+        history.on("redo", this.historyRedoRef);
     }
     else {
         this.app.mouse.off(pc.EVENT_MOUSEDOWN, this.onMouseDown, this);
         this.app.mouse.off(pc.EVENT_MOUSEMOVE, this.onMouseMove, this);
         this.app.mouse.off(pc.EVENT_MOUSEUP, this.onMouseUp, this);
-        //window.removeEventListener("keyup", this.keyUpListener, true);
+        history.unbind("undo", this.historyUndoRef);
+        history.unbind("redo", this.historyRedoRef);
+    }
+};
+UranusEditorEntitiesPaint.prototype.onHistoryUndo = function () {
+    // --- update renderer if required
+    if (this.hardwareInstancing) {
+        this.updateHardwareInstancing();
+    }
+};
+UranusEditorEntitiesPaint.prototype.onHistoryRedo = function () {
+    // --- update renderer if required
+    if (this.hardwareInstancing) {
+        this.updateHardwareInstancing();
     }
 };
 UranusEditorEntitiesPaint.prototype.onMouseDown = function (e) {
@@ -2891,7 +2927,7 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
         item = editor.call("entities:new", {
             name: bankItem.entity.name,
             parent: this.parentItem,
-            noHistory: true,
+            noHistory: false,
             noSelect: true,
         });
         item.set("enabled", false);
@@ -2931,9 +2967,12 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
     }
     // --- position + offset
     var offset = this.vec2.copy(this.posOffset);
-    offset.x *= scale.x;
-    offset.y *= scale.y;
-    offset.z *= scale.z;
+    // --- if required project offset to scale
+    if (this.projectOffset) {
+        offset.x *= scale.x;
+        offset.y *= scale.y;
+        offset.z *= scale.z;
+    }
     item.history.enabled = false;
     item.set("enabled", true);
     item.set("position", [
@@ -3022,8 +3061,8 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
         var instances = this.entity.find(function (child) {
             return child.name === spawnEntity.name;
         });
+        var spawnScale = spawnEntity.getLocalScale();
         entities.forEach(function (lodEntity, lodIndex) {
-            var spawnScale = spawnEntity.getLocalScale();
             lodEntity.model.meshInstances.forEach(function (meshInstance) {
                 // --- calculate pivot offset
                 var offset = this.vec
@@ -3064,11 +3103,16 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                     meshInstance.instancingData.vertexBuffer) {
                     meshInstance.instancingData.vertexBuffer.destroy();
                 }
-                var vertexBuffer = new pc.VertexBuffer(this.app.graphicsDevice, pc.VertexFormat.defaultInstancingFormat, instances.length, pc.BUFFER_STATIC, matrices);
+                var renderInitial = false;
+                if (this.useLOD === false ||
+                    (this.useLOD === true && lodIndex === 0)) {
+                    renderInitial = true;
+                }
+                var vertexBuffer = new pc.VertexBuffer(this.app.graphicsDevice, pc.VertexFormat.defaultInstancingFormat, renderInitial ? instances.length : 0, pc.BUFFER_STATIC, matrices);
                 meshInstance.setInstancing(vertexBuffer);
                 meshInstance.cullingData = {
-                    count: instances.length,
                     lodIndex: lodIndex,
+                    instances: instances,
                     boundings: boundingsOriginal,
                     matrices: matrices.slice(0),
                     matricesList: matricesList,
@@ -3081,7 +3125,8 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     var spawnEntities = this.spawnEntity.children[0] instanceof pc.Entity
         ? this.spawnEntity.children
         : [this.spawnEntity];
-    var frustum = this.cullingCamera.camera.frustum;
+    var cullingEnabled = this.cullingCamera && this.cullingCamera.camera;
+    var frustum = cullingEnabled ? this.cullingCamera.camera.frustum : null;
     var cameraPos = this.cullingCamera.getPosition();
     spawnEntities.forEach(function (spawnEntity) {
         if (this.useLOD === false && !spawnEntity.model)
@@ -3095,17 +3140,32 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         else {
             entities = [spawnEntity];
         }
+        var spawnScale = spawnEntity.getLocalScale();
         entities.forEach(function (lodEntity, lodIndex) {
             lodEntity.model.meshInstances.forEach(function (meshInstance) {
+                // --- check if we will be updating translations
+                if (this.isStatic) {
+                    // --- calculate pivot offset
+                    var offset = this.vec
+                        .copy(meshInstance.aabb.center)
+                        .sub(spawnEntity.getPosition());
+                    offset.x /= spawnScale.x;
+                    offset.y /= spawnScale.y;
+                    offset.z /= spawnScale.z;
+                }
+                var instances = meshInstance.cullingData.instances;
                 var boundings = meshInstance.cullingData.boundings;
                 var matrices = meshInstance.cullingData.matrices;
                 var matricesList = meshInstance.cullingData.matricesList;
                 // --- find visible instances
                 var visibleCount = 0;
                 var matrixIndex = 0;
-                for (var i = 0; i < meshInstance.cullingData.count; i++) {
+                for (var i = 0; i < instances.length; i++) {
+                    var instance = instances[i];
                     var bounding = boundings[i];
-                    var visible = frustum.containsSphere(bounding);
+                    var visible = cullingEnabled
+                        ? frustum.containsSphere(bounding)
+                        : 1;
                     // --- if LOD is used, we have a last step before rendering this instance: check if it's the active LOD
                     if (visible > 0 && this.useLOD === true) {
                         var instanceLodIndex = meshInstance.cullingData.lodIndex;
@@ -3129,6 +3189,16 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                     if (visible > 0) {
                         visibleCount++;
                         var matrix = matricesList[i];
+                        // --- check if we will be updating translations
+                        if (this.isStatic) {
+                            var scale = instance.getLocalScale();
+                            // --- calculate pivot point position
+                            this.vec1.copy(instance.getPosition());
+                            this.vec1.x += offset.x * scale.x;
+                            this.vec1.y += offset.y * scale.y;
+                            this.vec1.z += offset.z * scale.z;
+                            matrix.setTRS(this.vec1, instance.getRotation(), scale);
+                        }
                         for (var m = 0; m < 16; m++) {
                             matrices[matrixIndex] = matrix.data[m];
                             matrixIndex++;

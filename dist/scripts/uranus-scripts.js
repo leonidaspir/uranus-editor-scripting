@@ -2878,8 +2878,8 @@ UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (point, normal
                 this.currentPosition.z +
                     b * this.brushRadius * Math.sin((2 * Math.PI * a) / b);
             // --- get elevation under the point
-            this.vec.set(this.randomPosition.x, this.randomPosition.x.y + 10000, this.randomPosition.z);
-            this.vec1.set(this.randomPosition.x, this.randomPosition.x.y - 10000, this.randomPosition.z);
+            this.vec.set(this.randomPosition.x, this.randomPosition.y + 10000, this.randomPosition.z);
+            this.vec1.set(this.randomPosition.x, this.randomPosition.y - 10000, this.randomPosition.z);
             var result = this.app.systems.rigidbody.raycastFirst(this.vec, this.vec1);
             if (result) {
                 this.randomPosition.y = result.point.y;
@@ -3108,7 +3108,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                     (this.useLOD === true && lodIndex === 0)) {
                     renderInitial = true;
                 }
-                var vertexBuffer = new pc.VertexBuffer(this.app.graphicsDevice, pc.VertexFormat.defaultInstancingFormat, renderInitial ? instances.length : 0, pc.BUFFER_STATIC, matrices);
+                var vertexBuffer = new pc.VertexBuffer(this.app.graphicsDevice, pc.VertexFormat.defaultInstancingFormat, renderInitial ? instances.length : 0, pc.BUFFER_STATIC, renderInitial ? matrices : new Float32Array());
                 meshInstance.setInstancing(vertexBuffer);
                 meshInstance.cullingData = {
                     lodIndex: lodIndex,

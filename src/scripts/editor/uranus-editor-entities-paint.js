@@ -480,12 +480,12 @@ UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (
       // --- get elevation under the point
       this.vec.set(
         this.randomPosition.x,
-        this.randomPosition.x.y + 10000,
+        this.randomPosition.y + 10000,
         this.randomPosition.z
       );
       this.vec1.set(
         this.randomPosition.x,
-        this.randomPosition.x.y - 10000,
+        this.randomPosition.y - 10000,
         this.randomPosition.z
       );
 
@@ -788,7 +788,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                 pc.VertexFormat.defaultInstancingFormat,
                 renderInitial ? instances.length : 0,
                 pc.BUFFER_STATIC,
-                matrices
+                renderInitial ? matrices : new Float32Array()
               );
 
               meshInstance.setInstancing(vertexBuffer);

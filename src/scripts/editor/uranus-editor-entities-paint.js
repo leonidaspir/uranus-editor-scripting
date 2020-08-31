@@ -63,6 +63,18 @@ UranusEditorEntitiesPaint.attributes.add("hardwareInstancing", {
   title: "Hardware Instancing",
 });
 
+UranusEditorEntitiesPaint.attributes.add("useLOD", {
+  type: "boolean",
+  default: false,
+  title: "Use LOD",
+});
+
+UranusEditorEntitiesPaint.attributes.add("lodLevels", {
+  type: "vec4",
+  default: [10, 30, 50, 70],
+  title: "LOD Levels",
+});
+
 UranusEditorEntitiesPaint.attributes.add("cullingCamera", {
   type: "entity",
   title: "Culling Camera",
@@ -73,6 +85,12 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
   this.vec1 = new pc.Vec3();
   this.vec2 = new pc.Vec3();
   this.tempSphere = { center: null, radius: 0.5 };
+  this.lodDistance = [
+    this.lodLevels.x,
+    this.lodLevels.y,
+    this.lodLevels.z,
+    this.lodLevels.w,
+  ];
 
   if (this.hardwareInstancing) {
     this.enableHardwareInstancing();
@@ -566,127 +584,163 @@ UranusEditorEntitiesPaint.prototype.clearEditorInstances = function () {
 };
 
 UranusEditorEntitiesPaint.prototype.enableHardwareInstancing = function () {
-  var entities =
+  var spawnEntities =
     this.spawnEntity.children[0] instanceof pc.Entity
       ? this.spawnEntity.children
       : [this.spawnEntity];
 
   // --- loop through the materials of the spawn entity and enable hw instancing
-  entities.forEach(
+  var materials = [];
+
+  spawnEntities.forEach(
     function (spawnEntity) {
-      if (!spawnEntity.model) return true;
+      if (this.useLOD === false && !spawnEntity.model) return true;
 
-      spawnEntity.model.meshInstances.forEach(
-        function (meshInstance) {
-          var material = meshInstance.material;
+      if (this.useLOD === true && spawnEntity.children.length === 0)
+        return true;
 
-          if (this.hardwareInstancing) {
-            material.onUpdateShader = function (options) {
-              options.useInstancing = true;
-              return options;
-            };
-          } else {
-            material.onUpdateShader = undefined;
-            meshInstance.setInstancing();
-          }
-          material.update();
+      var entities;
+
+      if (this.useLOD === true) {
+        entities = spawnEntity.children;
+      } else {
+        entities = [spawnEntity];
+      }
+
+      entities.forEach(
+        function (spawnEntity) {
+          spawnEntity.model.meshInstances.forEach(
+            function (meshInstance) {
+              materials.push(meshInstance.material);
+            }.bind(this)
+          );
         }.bind(this)
       );
+    }.bind(this)
+  );
+
+  materials.forEach(
+    function (material) {
+      if (this.hardwareInstancing) {
+        material.onUpdateShader = function (options) {
+          options.useInstancing = true;
+          return options;
+        };
+      } else {
+        material.onUpdateShader = undefined;
+        meshInstance.setInstancing();
+      }
+      material.update();
     }.bind(this)
   );
 };
 
 UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
-  var entities =
+  var spawnEntities =
     this.spawnEntity.children[0] instanceof pc.Entity
       ? this.spawnEntity.children
       : [this.spawnEntity];
 
   var matrix = new pc.Mat4();
 
-  entities.forEach(
+  spawnEntities.forEach(
     function (spawnEntity) {
-      if (!spawnEntity.model) return true;
+      if (this.useLOD === false && !spawnEntity.model) return true;
 
-      var spawnScale = spawnEntity.getLocalScale();
+      if (this.useLOD === true && spawnEntity.children.length === 0)
+        return true;
 
-      spawnEntity.model.meshInstances.forEach(
-        function (meshInstance) {
-          // --- calculate number of instances
-          instances = this.entity.find(function (child) {
-            return child.name === spawnEntity.name;
-          });
+      var entities;
 
-          // --- calculate pivot offset
-          var offset = this.vec
-            .copy(meshInstance.aabb.center)
-            .sub(spawnEntity.getPosition());
+      if (this.useLOD === true) {
+        entities = spawnEntity.children;
+      } else {
+        entities = [spawnEntity];
+      }
 
-          offset.x /= spawnScale.x;
-          offset.y /= spawnScale.y;
-          offset.z /= spawnScale.z;
+      // --- calculate number of instances
+      var instances = this.entity.find(function (child) {
+        return child.name === spawnEntity.name;
+      });
 
-          // --- store matrices for individual instances into array
-          var matrices = new Float32Array(instances.length * 16);
-          var matricesList = [];
-          var boundingsOriginal = [];
+      entities.forEach(
+        function (lodEntity, lodIndex) {
+          var spawnScale = spawnEntity.getLocalScale();
+          lodEntity.model.meshInstances.forEach(
+            function (meshInstance) {
+              // --- calculate pivot offset
+              var offset = this.vec
+                .copy(meshInstance.aabb.center)
+                .sub(spawnEntity.getPosition());
 
-          var matrixIndex = 0;
-          for (var i = 0; i < instances.length; i++) {
-            var instance = instances[i];
+              offset.x /= spawnScale.x;
+              offset.y /= spawnScale.y;
+              offset.z /= spawnScale.z;
 
-            // --- check if we are interested in this mesh instance
-            if (instance.name !== spawnEntity.name) continue;
+              // --- store matrices for individual instances into array
+              var matrices = new Float32Array(instances.length * 16);
+              var matricesList = [];
+              var boundingsOriginal = [];
 
-            var scale = instance.getLocalScale();
+              var matrixIndex = 0;
+              for (var i = 0; i < instances.length; i++) {
+                var instance = instances[i];
 
-            // --- calculate pivot point position
-            this.vec1.copy(instance.getPosition());
-            this.vec1.x += offset.x * scale.x;
-            this.vec1.y += offset.y * scale.y;
-            this.vec1.z += offset.z * scale.z;
+                // --- check if we are interested in this mesh instance
+                if (instance.name !== spawnEntity.name) continue;
 
-            matrix.setTRS(this.vec1, instance.getRotation(), scale);
+                var scale = instance.getLocalScale();
 
-            // copy matrix elements into array of floats
-            for (var m = 0; m < 16; m++) {
-              matrices[matrixIndex] = matrix.data[m];
-              matrixIndex++;
-            }
+                // --- calculate pivot point position
+                this.vec1.copy(instance.getPosition());
+                this.vec1.x += offset.x * scale.x;
+                this.vec1.y += offset.y * scale.y;
+                this.vec1.z += offset.z * scale.z;
 
-            // --- save culling data
-            matricesList[i] = matrix.clone();
+                matrix.setTRS(this.vec1, instance.getRotation(), scale);
 
-            var bounding = new pc.BoundingSphere(
-              this.vec1.clone(),
-              meshInstance._aabb.halfExtents.length() * 2
-            );
-            boundingsOriginal[i] = bounding;
-          }
+                // copy matrix elements into array of floats
+                for (var m = 0; m < 16; m++) {
+                  matrices[matrixIndex] = matrix.data[m];
+                  matrixIndex++;
+                }
 
-          // --- create the vertex buffer
-          if (
-            meshInstance.instancingData &&
-            meshInstance.instancingData.vertexBuffer
-          ) {
-            meshInstance.instancingData.vertexBuffer.destroy();
-          }
+                // --- save culling data
+                matricesList[i] = matrix.clone();
 
-          var vertexBuffer = new pc.VertexBuffer(
-            this.app.graphicsDevice,
-            pc.VertexFormat.defaultInstancingFormat,
-            instances.length,
-            pc.BUFFER_STATIC,
-            matrices
+                var bounding = new pc.BoundingSphere(
+                  this.vec1.clone(),
+                  meshInstance._aabb.halfExtents.length() * 2
+                );
+                boundingsOriginal[i] = bounding;
+              }
+
+              // --- create the vertex buffer
+              if (
+                meshInstance.instancingData &&
+                meshInstance.instancingData.vertexBuffer
+              ) {
+                meshInstance.instancingData.vertexBuffer.destroy();
+              }
+
+              var vertexBuffer = new pc.VertexBuffer(
+                this.app.graphicsDevice,
+                pc.VertexFormat.defaultInstancingFormat,
+                instances.length,
+                pc.BUFFER_STATIC,
+                matrices
+              );
+
+              meshInstance.setInstancing(vertexBuffer);
+              meshInstance.cullingData = {
+                count: instances.length,
+                lodIndex: lodIndex,
+                boundings: boundingsOriginal,
+                matrices: matrices.slice(0),
+                matricesList: matricesList,
+              };
+            }.bind(this)
           );
-
-          meshInstance.setInstancing(vertexBuffer);
-          meshInstance.cullingData = {
-            count: instances.length,
-            boundings: boundingsOriginal,
-            matrices: matrices.slice(0),
-            matricesList: matricesList,
-          };
         }.bind(this)
       );
     }.bind(this)
@@ -694,59 +748,101 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
 };
 
 UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
-  var entities =
+  var spawnEntities =
     this.spawnEntity.children[0] instanceof pc.Entity
       ? this.spawnEntity.children
       : [this.spawnEntity];
 
   var frustum = this.cullingCamera.camera.frustum;
+  var cameraPos = this.cullingCamera.getPosition();
 
-  entities.forEach(
+  spawnEntities.forEach(
     function (spawnEntity) {
-      if (!spawnEntity.model) return true;
+      if (this.useLOD === false && !spawnEntity.model) return true;
 
-      spawnEntity.model.meshInstances.forEach(
-        function (meshInstance) {
-          var boundings = meshInstance.cullingData.boundings;
+      if (this.useLOD === true && spawnEntity.children.length === 0)
+        return true;
 
-          var matrices = meshInstance.cullingData.matrices;
-          var matricesList = meshInstance.cullingData.matricesList;
+      var entities;
 
-          // --- find visible instances
-          var visibleCount = 0;
-          var matrixIndex = 0;
+      if (this.useLOD === true) {
+        entities = spawnEntity.children;
+      } else {
+        entities = [spawnEntity];
+      }
 
-          for (var i = 0; i < meshInstance.cullingData.count; i++) {
-            var bounding = boundings[i];
+      entities.forEach(
+        function (lodEntity, lodIndex) {
+          lodEntity.model.meshInstances.forEach(
+            function (meshInstance) {
+              var boundings = meshInstance.cullingData.boundings;
 
-            var visible = frustum.containsSphere(bounding);
+              var matrices = meshInstance.cullingData.matrices;
+              var matricesList = meshInstance.cullingData.matricesList;
 
-            if (visible > 0) {
-              visibleCount++;
+              // --- find visible instances
+              var visibleCount = 0;
+              var matrixIndex = 0;
 
-              var matrix = matricesList[i];
+              for (var i = 0; i < meshInstance.cullingData.count; i++) {
+                var bounding = boundings[i];
 
-              for (var m = 0; m < 16; m++) {
-                matrices[matrixIndex] = matrix.data[m];
-                matrixIndex++;
+                var visible = frustum.containsSphere(bounding);
+
+                // --- if LOD is used, we have a last step before rendering this instance: check if it's the active LOD
+                if (visible > 0 && this.useLOD === true) {
+                  var instanceLodIndex = meshInstance.cullingData.lodIndex;
+
+                  var distanceFromCamera = cameraPos.distance(bounding.center);
+                  var activeLodIndex = 0;
+
+                  if (
+                    distanceFromCamera >= this.lodDistance[1] &&
+                    distanceFromCamera < this.lodDistance[2]
+                  ) {
+                    activeLodIndex = 1;
+                  } else if (
+                    distanceFromCamera >= this.lodDistance[2] &&
+                    distanceFromCamera < this.lodDistance[3]
+                  ) {
+                    activeLodIndex = 2;
+                  } else if (distanceFromCamera >= this.lodDistance[3]) {
+                    activeLodIndex = 3;
+                  }
+
+                  if (instanceLodIndex !== activeLodIndex) {
+                    visible = 0;
+                  }
+                }
+
+                if (visible > 0) {
+                  visibleCount++;
+
+                  var matrix = matricesList[i];
+
+                  for (var m = 0; m < 16; m++) {
+                    matrices[matrixIndex] = matrix.data[m];
+                    matrixIndex++;
+                  }
+                }
               }
-            }
-          }
 
-          var subarray = matrices.subarray(0, matrixIndex);
+              var subarray = matrices.subarray(0, matrixIndex);
 
-          // ToDo revert to using dynamic/stream buffers for culling
-          meshInstance.instancingData.vertexBuffer.destroy();
+              // ToDo revert to using dynamic/stream buffers for culling
+              meshInstance.instancingData.vertexBuffer.destroy();
 
-          var vertexBuffer = new pc.VertexBuffer(
-            this.app.graphicsDevice,
-            pc.VertexFormat.defaultInstancingFormat,
-            visibleCount,
-            pc.BUFFER_STATIC,
-            subarray
+              var vertexBuffer = new pc.VertexBuffer(
+                this.app.graphicsDevice,
+                pc.VertexFormat.defaultInstancingFormat,
+                visibleCount,
+                pc.BUFFER_STATIC,
+                subarray
+              );
+
+              meshInstance.setInstancing(vertexBuffer);
+            }.bind(this)
           );
-
-          meshInstance.setInstancing(vertexBuffer);
         }.bind(this)
       );
     }.bind(this)

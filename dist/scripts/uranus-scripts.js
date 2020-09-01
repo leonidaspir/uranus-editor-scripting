@@ -2574,10 +2574,17 @@ UranusEditorEntitiesPaint.attributes.add("hardwareInstancing", {
     default: false,
     title: "Hardware Instancing",
 });
+UranusEditorEntitiesPaint.attributes.add("removeComponents", {
+    type: "string",
+    default: "model",
+    title: "Remove Components",
+    description: "A comma separated list of entity compoments to be removed when spawning an instance. When using HW instancing the model component should be removed.",
+});
 UranusEditorEntitiesPaint.attributes.add("useLOD", {
     type: "boolean",
     default: false,
     title: "Use LOD",
+    description: "A LOD system that works only when HW instancing is enabled. All LOD levels should be added as a first level entity to the spawn instance, with a model component and the 'uranus-lod-entity' tag.",
 });
 UranusEditorEntitiesPaint.attributes.add("lodLevels", {
     type: "vec4",
@@ -2639,9 +2646,24 @@ UranusEditorEntitiesPaint.prototype.editorInitialize = function () {
     this.gizmoMaterial.opacity = 0.25;
     this.gizmoMaterial.useLighting = false;
     this.gizmoMaterial.update();
+    // --- prepare components to remove
+    this.prepareComponentsToClear(this.removeComponents);
     // --- add custom CSS
     var sheet = window.document.styleSheets[0];
     sheet.insertRule(".active-entities-painter-button { background-color: #f60 !important; color: white !important; }", sheet.cssRules.length);
+};
+UranusEditorEntitiesPaint.prototype.prepareComponentsToClear = function (value) {
+    this.componentsToClear = [];
+    value
+        .replace(/\s+/, "")
+        .split(",")
+        .forEach(function (componentName) {
+        this.componentsToClear.push(componentName);
+    }.bind(this));
+    // --- if HW instancing is enabled we automatically add model in the list, if it's not
+    if (this.componentsToClear.indexOf("model") === -1) {
+        this.componentsToClear.push("model");
+    }
 };
 // --- editor script methods
 UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (element) {
@@ -2687,6 +2709,9 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
     }
     if (property === "hardwareInstancing") {
         this.enableHardwareInstancing();
+    }
+    if (property === "removeComponents") {
+        this.prepareComponentsToClear(value);
     }
     if (property === "lodLevels") {
         this.lodDistance = [value.x, value.y, value.z, value.w];
@@ -2923,19 +2948,34 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
     var item;
     var referenceEntity;
     // --- if we are using HW instancing, we spawn an empty entity (no model or other components)
-    if (this.hardwareInstancing) {
-        item = editor.call("entities:new", {
-            name: bankItem.entity.name,
-            parent: this.parentItem,
-            noHistory: false,
-            noSelect: true,
+    // if (this.hardwareInstancing) {
+    //   item = editor.call("entities:new", {
+    //     name: bankItem.entity.name,
+    //     parent: this.parentItem,
+    //     noHistory: false,
+    //     noSelect: true,
+    //   });
+    //   item.set("enabled", false);
+    //   referenceEntity = bankItem.entity;
+    // } else {
+    //   item = Uranus.Editor.duplicateEntities([bankItem], this.parentItem)[0];
+    //   referenceEntity = item.entity;
+    // }
+    item = Uranus.Editor.duplicateEntities([bankItem], this.parentItem)[0];
+    referenceEntity = item.entity;
+    // --- remove components
+    this.componentsToClear.forEach(function (componentName) {
+        item.unset("components." + componentName);
+    });
+    // --- clear LOD children if HW instancing and LOD is enabled
+    if (this.hardwareInstancing === true && this.useLOD) {
+        item.get("children").forEach(function (child) {
+            var removeEntity = editor.call("entities:get", child);
+            if (!removeEntity ||
+                removeEntity.get("tags").indexOf("uranus-lod-entity") === -1)
+                return;
+            editor.call("entities:removeEntity", removeEntity);
         });
-        item.set("enabled", false);
-        referenceEntity = bankItem.entity;
-    }
-    else {
-        item = Uranus.Editor.duplicateEntities([bankItem], this.parentItem)[0];
-        referenceEntity = item.entity;
     }
     // --- scale them up
     var scale = this.vec.copy(referenceEntity.getLocalScale());
@@ -3015,15 +3055,22 @@ UranusEditorEntitiesPaint.prototype.enableHardwareInstancing = function () {
             return true;
         var entities;
         if (this.useLOD === true) {
-            entities = spawnEntity.children;
+            entities = [];
+            spawnEntity.children.forEach(function (child) {
+                if (this.isLodEntity(child)) {
+                    entities.push(child);
+                }
+            }.bind(this));
         }
         else {
             entities = [spawnEntity];
         }
-        entities.forEach(function (spawnEntity) {
-            spawnEntity.model.meshInstances.forEach(function (meshInstance) {
-                materials.push(meshInstance.material);
-            }.bind(this));
+        entities.forEach(function (lodEntity) {
+            if (lodEntity.model) {
+                lodEntity.model.meshInstances.forEach(function (meshInstance) {
+                    materials.push(meshInstance.material);
+                }.bind(this));
+            }
         }.bind(this));
     }.bind(this));
     materials.forEach(function (material) {
@@ -3052,7 +3099,12 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
             return true;
         var entities;
         if (this.useLOD === true) {
-            entities = spawnEntity.children;
+            entities = [];
+            spawnEntity.children.forEach(function (child) {
+                if (this.isLodEntity(child)) {
+                    entities.push(child);
+                }
+            }.bind(this));
         }
         else {
             entities = [spawnEntity];
@@ -3063,6 +3115,8 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
         });
         var spawnScale = spawnEntity.getLocalScale();
         entities.forEach(function (lodEntity, lodIndex) {
+            if (!lodEntity.model)
+                return true;
             lodEntity.model.meshInstances.forEach(function (meshInstance) {
                 // --- calculate pivot offset
                 var offset = this.vec
@@ -3135,14 +3189,24 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
             return true;
         var entities;
         if (this.useLOD === true) {
-            entities = spawnEntity.children;
+            entities = [];
+            spawnEntity.children.forEach(function (child) {
+                if (this.isLodEntity(child)) {
+                    entities.push(child);
+                }
+            }.bind(this));
         }
         else {
             entities = [spawnEntity];
         }
         var spawnScale = spawnEntity.getLocalScale();
         entities.forEach(function (lodEntity, lodIndex) {
+            if (!lodEntity.model)
+                return;
             lodEntity.model.meshInstances.forEach(function (meshInstance) {
+                if (!meshInstance.cullingData) {
+                    return true;
+                }
                 // --- check if we will be updating translations
                 if (this.isStatic) {
                     // --- calculate pivot offset
@@ -3238,6 +3302,15 @@ UranusEditorEntitiesPaint.prototype.setMat4Forward = function (mat4, forward, up
     r[11] = 0;
     r[15] = 1;
     return mat4;
+};
+UranusEditorEntitiesPaint.prototype.isLodEntity = function (entity) {
+    if (Uranus.Editor.inEditor()) {
+        var item = editor.call("entities:get", entity._guid);
+        return item.get("tags").indexOf("uranus-lod-entity") > -1;
+    }
+    else {
+        return entity.tags.has("uranus-lod-entity");
+    }
 };
 var UranusEffectAnimateMaterial = pc.createScript("uranusEffectAnimateMaterial");
 UranusEffectAnimateMaterial.attributes.add("inEditor", {

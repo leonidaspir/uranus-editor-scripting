@@ -36,6 +36,7 @@ export default class Editor {
 
   public editorPickerState = Systems.editorPickerState.bind(this);
   public runBatcher = Systems.runBatcher.bind(this);
+  public inEditor = Editor.inEditor;
 
   constructor() {
     this.app = editor ? editor.call("viewport:app") : undefined;

@@ -941,6 +941,9 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                 renderInitial ? matrices : new Float32Array()
               );
 
+              var primitive =
+                meshInstance.mesh.primitive[meshInstance.renderStyle];
+
               meshInstance.setInstancing(vertexBuffer);
 
               meshInstance.cullingData = {
@@ -959,12 +962,17 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
 };
 
 UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
+  var cullingEnabled = this.cullingCamera && this.cullingCamera.camera;
+
+  if (!cullingEnabled && !this.useLOD && this.isStatic === true) {
+    return;
+  }
+
   var spawnEntities =
     this.spawnEntity.children[0] instanceof pc.Entity
       ? this.spawnEntity.children
       : [this.spawnEntity];
 
-  var cullingEnabled = this.cullingCamera && this.cullingCamera.camera;
   var frustum = cullingEnabled ? this.cullingCamera.camera.frustum : null;
   var cameraPos = cullingEnabled ? this.cullingCamera.getPosition() : null;
 
@@ -1086,18 +1094,29 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
               var subarray = matrices.subarray(0, matrixIndex);
 
-              // ToDo revert to using dynamic/stream buffers for culling
-              meshInstance.instancingData.vertexBuffer.destroy();
+              // --- update the vertex buffer, by replacing the current one (uses the same bufferId)
+              var vertexBuffer = meshInstance.instancingData.vertexBuffer;
+              var primitive =
+                meshInstance.mesh.primitive[meshInstance.renderStyle];
 
-              var vertexBuffer = new pc.VertexBuffer(
-                this.app.graphicsDevice,
-                pc.VertexFormat.defaultInstancingFormat,
-                visibleCount,
-                pc.BUFFER_STATIC,
-                subarray
-              );
+              this.app.graphicsDevice._primsPerFrame[primitive.type] -=
+                primitive.count * instances.length * 2;
 
-              meshInstance.setInstancing(vertexBuffer);
+              // stats update
+              this.app.graphicsDevice._vram.vb -= vertexBuffer.numBytes;
+
+              var format = vertexBuffer.format;
+              vertexBuffer.numBytes = format.verticesByteSize
+                ? format.verticesByteSize
+                : format.size * visibleCount;
+
+              // stats update
+              this.app.graphicsDevice._vram.vb += vertexBuffer.numBytes;
+              this.app.graphicsDevice._primsPerFrame[primitive.type] +=
+                primitive.count * visibleCount * 2;
+
+              vertexBuffer.setData(subarray);
+              vertexBuffer.numVertices = visibleCount;
             }.bind(this)
           );
         }.bind(this)

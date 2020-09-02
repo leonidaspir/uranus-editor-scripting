@@ -2602,6 +2602,12 @@ UranusEditorEntitiesPaint.attributes.add("lodLevels", {
     default: [10, 30, 50, 70],
     title: "LOD Levels",
 });
+UranusEditorEntitiesPaint.attributes.add("hideAfter", {
+    type: "boolean",
+    default: false,
+    title: "Hide After",
+    description: "Cull the distance after the LOD3 distance is reached, this works even for instances that don't use LOD.",
+});
 UranusEditorEntitiesPaint.attributes.add("cullingCamera", {
     type: "entity",
     title: "Culling Camera",
@@ -3027,8 +3033,8 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
     var angles = this.vec1;
     if (this.alignThem) {
         // --- align in the direction of the hit normal
-        this.setMat4Forward(this.matrix, normal, pc.Vec3.UP);
-        this.quat.setFromMat4(this.matrix);
+        this.setMat4Forward(matrix, normal, pc.Vec3.UP);
+        this.quat.setFromMat4(matrix);
         angles
             .copy(this.quat.getEulerAngles())
             .sub(referenceEntity.getLocalEulerAngles());
@@ -3106,12 +3112,13 @@ UranusEditorEntitiesPaint.prototype.clearEditorInstances = function () {
     }
 };
 UranusEditorEntitiesPaint.prototype.enableHardwareInstancing = function () {
-    var spawnEntities = this.spawnEntity.children[0] instanceof pc.Entity
-        ? this.spawnEntity.children
-        : [this.spawnEntity];
+    this.spawnEntities =
+        this.spawnEntity.children[0] instanceof pc.Entity
+            ? this.spawnEntity.children
+            : [this.spawnEntity];
     // --- loop through the materials of the spawn entity and enable hw instancing
     var materials = [];
-    spawnEntities.forEach(function (spawnEntity) {
+    this.spawnEntities.forEach(function (spawnEntity) {
         if (this.useLOD === false && !spawnEntity.model)
             return true;
         if (this.useLOD === true && spawnEntity.children.length === 0)
@@ -3151,10 +3158,8 @@ UranusEditorEntitiesPaint.prototype.enableHardwareInstancing = function () {
     }.bind(this));
 };
 UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
-    var spawnEntities = this.spawnEntity.children[0] instanceof pc.Entity
-        ? this.spawnEntity.children
-        : [this.spawnEntity];
     var matrix = new pc.Mat4();
+    var spawnEntities = this.spawnEntities;
     spawnEntities.forEach(function (spawnEntity, spawnEntityIndex) {
         if (this.useLOD === false && !spawnEntity.model)
             return true;
@@ -3172,13 +3177,14 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
         else {
             entities = [spawnEntity];
         }
+        this.lodEntities = entities;
         // --- calculate number of instances
         var instances = this.filterInstances(spawnEntity, spawnEntityIndex);
         if (instances.length === 0) {
             return true;
         }
         var spawnScale = spawnEntity.getLocalScale();
-        entities.forEach(function (lodEntity, lodIndex) {
+        this.lodEntities.forEach(function (lodEntity, lodIndex) {
             if (!lodEntity.model)
                 return true;
             lodEntity.model.meshInstances.forEach(function (meshInstance) {
@@ -3232,6 +3238,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                     lodIndex: lodIndex,
                     instances: instances,
                     boundings: boundingsOriginal,
+                    culled: this.useLOD && lodIndex === 0 ? [] : undefined,
                     distances: this.useLOD && lodIndex === 0 ? [] : undefined,
                     matrices: matrices.slice(0),
                     matricesList: matricesList,
@@ -3245,40 +3252,30 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     if (!cullingEnabled && !this.useLOD && this.isStatic === true) {
         return;
     }
-    var spawnEntities = this.spawnEntity.children[0] instanceof pc.Entity
-        ? this.spawnEntity.children
-        : [this.spawnEntity];
+    var app = this.app;
+    var isStatic = this.isStatic === false || this.streamingFile;
+    var hideAfter = this.hideAfter;
+    var useLOD = this.useLOD;
+    var vec = this.vec;
+    var vec1 = this.vec1;
+    var lodDistance = this.lodDistance;
+    var lodEntities = this.lodEntities;
     var frustum = cullingEnabled ? this.cullingCamera.camera.frustum : null;
     var cameraPos = cullingEnabled ? this.cullingCamera.getPosition() : null;
-    spawnEntities.forEach(function (spawnEntity) {
-        if (this.useLOD === false && !spawnEntity.model)
+    this.spawnEntities.forEach(function (spawnEntity) {
+        if (useLOD === false && !spawnEntity.model)
             return true;
-        if (this.useLOD === true && spawnEntity.children.length === 0)
+        if (useLOD === true && spawnEntity.children.length === 0)
             return true;
-        var entities;
-        if (this.useLOD === true) {
-            entities = [];
-            spawnEntity.children.forEach(function (child) {
-                if (this.isLodEntity(child)) {
-                    entities.push(child);
-                }
-            }.bind(this));
-        }
-        else {
-            entities = [spawnEntity];
-        }
         var spawnScale = spawnEntity.getLocalScale();
-        entities.forEach(function (lodEntity, lodIndex) {
-            if (!lodEntity.model)
-                return;
+        lodEntities.forEach(function (lodEntity, lodIndex) {
             lodEntity.model.meshInstances.forEach(function (meshInstance, meshInstanceIndex) {
-                if (!meshInstance.cullingData) {
-                    return true;
-                }
+                if (!meshInstance.cullingData)
+                    return false;
                 // --- check if we will be updating translations
-                if (this.isStatic) {
+                if (isStatic === false) {
                     // --- calculate pivot offset
-                    var offset = this.vec
+                    var offset = vec
                         .copy(meshInstance.aabb.center)
                         .sub(spawnEntity.getPosition());
                     offset.x /= spawnScale.x;
@@ -3296,31 +3293,53 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                     var instance = instances[i];
                     var bounding = boundings[i];
                     var visible = cullingEnabled
-                        ? frustum.containsSphere(bounding)
-                        : 1;
+                        ? lodIndex === 0
+                            ? frustum.containsSphere(bounding)
+                            : entities[0].model.meshInstances[meshInstanceIndex].cullingData
+                                .culled[i]
+                        : 0;
+                    var distanceFromCamera;
                     // --- if LOD is used, we have a last step before rendering this instance: check if it's the active LOD
-                    if (visible > 0 && this.useLOD === true) {
-                        var instanceLodIndex = meshInstance.cullingData.lodIndex;
-                        var distanceFromCamera = lodIndex === 0
-                            ? cameraPos.distance(bounding.center)
-                            : entities[0].model.meshInstances[meshInstanceIndex]
-                                .cullingData.distances[i];
+                    if (useLOD === true) {
                         if (lodIndex === 0) {
-                            meshInstance.cullingData.distances[i] = distanceFromCamera;
+                            meshInstance.cullingData.culled[i] = visible;
                         }
-                        var activeLodIndex = 0;
-                        if (distanceFromCamera >= this.lodDistance[1] &&
-                            distanceFromCamera < this.lodDistance[2]) {
-                            activeLodIndex = 1;
+                        if (visible > 0) {
+                            var instanceLodIndex = meshInstance.cullingData.lodIndex;
+                            distanceFromCamera =
+                                lodIndex === 0
+                                    ? cameraPos.distance(bounding.center)
+                                    : entities[0].model.meshInstances[meshInstanceIndex]
+                                        .cullingData.distances[i];
+                            // --- save check for later LOD levels
+                            if (lodIndex === 0) {
+                                meshInstance.cullingData.distances[i] = distanceFromCamera;
+                            }
+                            var activeLodIndex = 0;
+                            if (distanceFromCamera >= lodDistance[1] &&
+                                distanceFromCamera < lodDistance[2]) {
+                                activeLodIndex = 1;
+                            }
+                            else if (distanceFromCamera >= lodDistance[2] &&
+                                distanceFromCamera < lodDistance[3]) {
+                                activeLodIndex = 2;
+                            }
+                            else if (distanceFromCamera >= lodDistance[3]) {
+                                activeLodIndex = 3;
+                            }
+                            if (instanceLodIndex !== activeLodIndex) {
+                                visible = 0;
+                            }
                         }
-                        else if (distanceFromCamera >= this.lodDistance[2] &&
-                            distanceFromCamera < this.lodDistance[3]) {
-                            activeLodIndex = 2;
+                    }
+                    console.log(hideAfter === true, visible > 0);
+                    if (hideAfter === true && visible > 0) {
+                        // --- check if the distance to the camera has already been calculated, otherwise calculate
+                        if (!distanceFromCamera) {
+                            distanceFromCamera = cameraPos.distance(bounding.center);
                         }
-                        else if (distanceFromCamera >= this.lodDistance[3]) {
-                            activeLodIndex = 3;
-                        }
-                        if (instanceLodIndex !== activeLodIndex) {
+                        console.log(distanceFromCamera, lodDistance[3]);
+                        if (distanceFromCamera >= lodDistance[3]) {
                             visible = 0;
                         }
                     }
@@ -3328,14 +3347,14 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                         visibleCount++;
                         var matrix = matricesList[i];
                         // --- check if we will be updating translations
-                        if (this.isStatic === false && !this.streamingFile) {
+                        if (isStatic === false) {
                             var scale = instance.getLocalScale();
                             // --- calculate pivot point position
-                            this.vec1.copy(instance.getPosition());
-                            this.vec1.x += offset.x * scale.x;
-                            this.vec1.y += offset.y * scale.y;
-                            this.vec1.z += offset.z * scale.z;
-                            matrix.setTRS(this.vec1, instance.getRotation(), scale);
+                            vec1.copy(instance.getPosition());
+                            vec1.x += offset.x * scale.x;
+                            vec1.y += offset.y * scale.y;
+                            vec1.z += offset.z * scale.z;
+                            matrix.setTRS(vec1, instance.getRotation(), scale);
                         }
                         for (var m = 0; m < 16; m++) {
                             matrices[matrixIndex] = matrix.data[m];
@@ -3348,24 +3367,24 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                 var vertexBuffer = meshInstance.instancingData.vertexBuffer;
                 // var primitive =
                 //   meshInstance.mesh.primitive[meshInstance.renderStyle];
-                // this.app.graphicsDevice._primsPerFrame[primitive.type] -=
+                // app.graphicsDevice._primsPerFrame[primitive.type] -=
                 //   primitive.count * instances.length * 2;
                 // stats update
-                this.app.graphicsDevice._vram.vb -= vertexBuffer.numBytes;
+                app.graphicsDevice._vram.vb -= vertexBuffer.numBytes;
                 var format = vertexBuffer.format;
                 vertexBuffer.numBytes = format.verticesByteSize
                     ? format.verticesByteSize
                     : format.size * visibleCount;
                 // stats update
-                this.app.graphicsDevice._vram.vb += vertexBuffer.numBytes;
-                // this.app.graphicsDevice._primsPerFrame[primitive.type] +=
+                app.graphicsDevice._vram.vb += vertexBuffer.numBytes;
+                // app.graphicsDevice._primsPerFrame[primitive.type] +=
                 //   primitive.count * visibleCount * 2;
                 vertexBuffer.setData(subarray);
                 meshInstance.instancingData.count = visibleCount;
                 vertexBuffer.numVertices = visibleCount;
-            }.bind(this));
-        }.bind(this));
-    }.bind(this));
+            });
+        });
+    });
 };
 UranusEditorEntitiesPaint.prototype.setMat4Forward = function (mat4, forward, up) {
     var x = this.x;

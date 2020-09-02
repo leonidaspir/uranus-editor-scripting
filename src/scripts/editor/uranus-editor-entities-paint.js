@@ -955,6 +955,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                 lodIndex: lodIndex,
                 instances: instances,
                 boundings: boundingsOriginal,
+                distances: this.useLOD && lodIndex === 0 ? [] : undefined,
                 matrices: matrices.slice(0),
                 matricesList: matricesList,
               };
@@ -1011,7 +1012,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
           if (!lodEntity.model) return;
 
           lodEntity.model.meshInstances.forEach(
-            function (meshInstance) {
+            function (meshInstance, meshInstanceIndex) {
               if (!meshInstance.cullingData) {
                 return true;
               }
@@ -1050,7 +1051,16 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                 if (visible > 0 && this.useLOD === true) {
                   var instanceLodIndex = meshInstance.cullingData.lodIndex;
 
-                  var distanceFromCamera = cameraPos.distance(bounding.center);
+                  var distanceFromCamera =
+                    lodIndex === 0
+                      ? cameraPos.distance(bounding.center)
+                      : entities[0].model.meshInstances[meshInstanceIndex]
+                          .cullingData.distances[i];
+
+                  if (lodIndex === 0) {
+                    meshInstance.cullingData.distances[i] = distanceFromCamera;
+                  }
+
                   var activeLodIndex = 0;
 
                   if (

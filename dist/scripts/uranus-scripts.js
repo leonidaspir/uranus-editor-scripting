@@ -3232,6 +3232,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                     lodIndex: lodIndex,
                     instances: instances,
                     boundings: boundingsOriginal,
+                    distances: this.useLOD && lodIndex === 0 ? [] : undefined,
                     matrices: matrices.slice(0),
                     matricesList: matricesList,
                 };
@@ -3270,7 +3271,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         entities.forEach(function (lodEntity, lodIndex) {
             if (!lodEntity.model)
                 return;
-            lodEntity.model.meshInstances.forEach(function (meshInstance) {
+            lodEntity.model.meshInstances.forEach(function (meshInstance, meshInstanceIndex) {
                 if (!meshInstance.cullingData) {
                     return true;
                 }
@@ -3300,7 +3301,13 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                     // --- if LOD is used, we have a last step before rendering this instance: check if it's the active LOD
                     if (visible > 0 && this.useLOD === true) {
                         var instanceLodIndex = meshInstance.cullingData.lodIndex;
-                        var distanceFromCamera = cameraPos.distance(bounding.center);
+                        var distanceFromCamera = lodIndex === 0
+                            ? cameraPos.distance(bounding.center)
+                            : entities[0].model.meshInstances[meshInstanceIndex]
+                                .cullingData.distances[i];
+                        if (lodIndex === 0) {
+                            meshInstance.cullingData.distances[i] = distanceFromCamera;
+                        }
                         var activeLodIndex = 0;
                         if (distanceFromCamera >= this.lodDistance[1] &&
                             distanceFromCamera < this.lodDistance[2]) {

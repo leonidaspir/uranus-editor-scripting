@@ -3415,7 +3415,7 @@ UranusEditorEntitiesPaint.prototype.filterInstances = function (spawnEntity, spa
         var instances = [];
         for (var i = 0; i < this.streamingData.length; i += 10) {
             var index = this.streamingData[i];
-            if (!spawnEntityIndex !== null ||
+            if (spawnEntityIndex === null ||
                 (spawnEntityIndex !== null && index === spawnEntityIndex)) {
                 instances.push(i);
             }

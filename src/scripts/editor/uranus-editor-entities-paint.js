@@ -122,11 +122,14 @@ UranusEditorEntitiesPaint.attributes.add("isStatic", {
     "When hardware instancing is enabled, checking this flag will provide a performance increase since no translations will be updated on runtime.",
 });
 
+UranusEditorEntitiesPaint.float3dArrayZero = new Float32Array();
+
 UranusEditorEntitiesPaint.prototype.initialize = function () {
   this.vec = new pc.Vec3();
   this.vec1 = new pc.Vec3();
   this.vec2 = new pc.Vec3();
   this.quat = new pc.Vec4();
+
   this.tempSphere = { center: null, radius: 0.5 };
   this.lodDistance = [
     this.lodLevels.x,
@@ -651,10 +654,11 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
       item.unset("components." + componentName);
     });
 
-    // --- clear LOD children if HW instancing and LOD is enabled
+    // --- clear LOD children if we use HW instancing and LOD is enabled
     if (this.hardwareInstancing === true && this.useLOD) {
       item.get("children").forEach(function (child) {
         var removeEntity = editor.call("entities:get", child);
+
         if (
           !removeEntity ||
           removeEntity.get("tags").indexOf("uranus-lod-entity") === -1
@@ -858,6 +862,10 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
       // --- calculate number of instances
       var instances = this.filterInstances(spawnEntity, spawnEntityIndex);
 
+      if (instances.length === 0) {
+        return true;
+      }
+
       var spawnScale = spawnEntity.getLocalScale();
 
       entities.forEach(
@@ -940,9 +948,6 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                 pc.BUFFER_STATIC,
                 renderInitial ? matrices : new Float32Array()
               );
-
-              var primitive =
-                meshInstance.mesh.primitive[meshInstance.renderStyle];
 
               meshInstance.setInstancing(vertexBuffer);
 
@@ -1096,9 +1101,9 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
               // --- update the vertex buffer, by replacing the current one (uses the same bufferId)
               var vertexBuffer = meshInstance.instancingData.vertexBuffer;
-              var primitive =
-                meshInstance.mesh.primitive[meshInstance.renderStyle];
 
+              // var primitive =
+              //   meshInstance.mesh.primitive[meshInstance.renderStyle];
               // this.app.graphicsDevice._primsPerFrame[primitive.type] -=
               //   primitive.count * instances.length * 2;
 
@@ -1116,6 +1121,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
               //   primitive.count * visibleCount * 2;
 
               vertexBuffer.setData(subarray);
+              meshInstance.instancingData.count = visibleCount;
               vertexBuffer.numVertices = visibleCount;
             }.bind(this)
           );

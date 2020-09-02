@@ -2612,6 +2612,7 @@ UranusEditorEntitiesPaint.attributes.add("isStatic", {
     title: "Is Static",
     description: "When hardware instancing is enabled, checking this flag will provide a performance increase since no translations will be updated on runtime.",
 });
+UranusEditorEntitiesPaint.float3dArrayZero = new Float32Array();
 UranusEditorEntitiesPaint.prototype.initialize = function () {
     this.vec = new pc.Vec3();
     this.vec1 = new pc.Vec3();
@@ -3007,7 +3008,7 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
         this.componentsToClear.forEach(function (componentName) {
             item.unset("components." + componentName);
         });
-        // --- clear LOD children if HW instancing and LOD is enabled
+        // --- clear LOD children if we use HW instancing and LOD is enabled
         if (this.hardwareInstancing === true && this.useLOD) {
             item.get("children").forEach(function (child) {
                 var removeEntity = editor.call("entities:get", child);
@@ -3173,6 +3174,9 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
         }
         // --- calculate number of instances
         var instances = this.filterInstances(spawnEntity, spawnEntityIndex);
+        if (instances.length === 0) {
+            return true;
+        }
         var spawnScale = spawnEntity.getLocalScale();
         entities.forEach(function (lodEntity, lodIndex) {
             if (!lodEntity.model)
@@ -3223,7 +3227,6 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                     renderInitial = true;
                 }
                 var vertexBuffer = new pc.VertexBuffer(this.app.graphicsDevice, pc.VertexFormat.defaultInstancingFormat, renderInitial ? instances.length : 0, pc.BUFFER_STATIC, renderInitial ? matrices : new Float32Array());
-                var primitive = meshInstance.mesh.primitive[meshInstance.renderStyle];
                 meshInstance.setInstancing(vertexBuffer);
                 meshInstance.cullingData = {
                     lodIndex: lodIndex,
@@ -3336,7 +3339,8 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                 var subarray = matrices.subarray(0, matrixIndex);
                 // --- update the vertex buffer, by replacing the current one (uses the same bufferId)
                 var vertexBuffer = meshInstance.instancingData.vertexBuffer;
-                var primitive = meshInstance.mesh.primitive[meshInstance.renderStyle];
+                // var primitive =
+                //   meshInstance.mesh.primitive[meshInstance.renderStyle];
                 // this.app.graphicsDevice._primsPerFrame[primitive.type] -=
                 //   primitive.count * instances.length * 2;
                 // stats update
@@ -3350,6 +3354,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                 // this.app.graphicsDevice._primsPerFrame[primitive.type] +=
                 //   primitive.count * visibleCount * 2;
                 vertexBuffer.setData(subarray);
+                meshInstance.instancingData.count = visibleCount;
                 vertexBuffer.numVertices = visibleCount;
             }.bind(this));
         }.bind(this));

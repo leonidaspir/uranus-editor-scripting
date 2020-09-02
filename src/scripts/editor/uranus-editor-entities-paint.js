@@ -1099,8 +1099,8 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
               var primitive =
                 meshInstance.mesh.primitive[meshInstance.renderStyle];
 
-              this.app.graphicsDevice._primsPerFrame[primitive.type] -=
-                primitive.count * instances.length * 2;
+              // this.app.graphicsDevice._primsPerFrame[primitive.type] -=
+              //   primitive.count * instances.length * 2;
 
               // stats update
               this.app.graphicsDevice._vram.vb -= vertexBuffer.numBytes;
@@ -1112,8 +1112,8 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
               // stats update
               this.app.graphicsDevice._vram.vb += vertexBuffer.numBytes;
-              this.app.graphicsDevice._primsPerFrame[primitive.type] +=
-                primitive.count * visibleCount * 2;
+              // this.app.graphicsDevice._primsPerFrame[primitive.type] +=
+              //   primitive.count * visibleCount * 2;
 
               vertexBuffer.setData(subarray);
               vertexBuffer.numVertices = visibleCount;

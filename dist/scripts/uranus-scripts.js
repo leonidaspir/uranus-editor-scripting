@@ -2569,6 +2569,17 @@ UranusEditorEntitiesPaint.attributes.add("alignThem", {
     default: false,
     title: "Align To Surface",
 });
+UranusEditorEntitiesPaint.attributes.add("streamingFile", {
+    type: "asset",
+    assetType: "json",
+    title: "Streaming File",
+    description: "If a .json asset file is provided, instead of spawning new entities in the hierarchy, all translation info will be saved to the file. This is ideal when spawning a huge number of static instances.",
+});
+UranusEditorEntitiesPaint.attributes.add("playcanvasToken", {
+    type: "string",
+    title: "Playcanvas Token",
+    description: "A valid Playcanvas Rest API access token to be used for updating the streaming file.",
+});
 UranusEditorEntitiesPaint.attributes.add("hardwareInstancing", {
     type: "boolean",
     default: false,
@@ -2605,6 +2616,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     this.vec = new pc.Vec3();
     this.vec1 = new pc.Vec3();
     this.vec2 = new pc.Vec3();
+    this.quat = new pc.Vec4();
     this.tempSphere = { center: null, radius: 0.5 };
     this.lodDistance = [
         this.lodLevels.x,
@@ -2612,6 +2624,13 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         this.lodLevels.z,
         this.lodLevels.w,
     ];
+    this.streamingData = this.loadStreamingData();
+    this.instanceData = {
+        name: undefined,
+        position: new pc.Vec3(),
+        rotation: new pc.Quat(),
+        scale: new pc.Vec3(),
+    };
     if (this.hardwareInstancing) {
         this.enableHardwareInstancing();
         this.updateHardwareInstancing();
@@ -2707,6 +2726,9 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
         this.setGizmoState(false);
         this.setGizmoState(true);
     }
+    if (property === "streamingFile") {
+        this.streamingData = this.loadStreamingData();
+    }
     if (property === "hardwareInstancing") {
         this.enableHardwareInstancing();
     }
@@ -2766,6 +2788,10 @@ UranusEditorEntitiesPaint.prototype.stopBuilding = function () {
     this.setInputState(false);
     // --- disable gizmo
     this.setGizmoState(false);
+    // --- if we are streaming the data, update the file
+    if (this.streamingFile) {
+        this.saveStreamingData();
+    }
 };
 UranusEditorEntitiesPaint.prototype.setGizmoState = function (state) {
     if (state === true) {
@@ -2844,7 +2870,6 @@ UranusEditorEntitiesPaint.prototype.onMouseUp = function (e) {
         this.parseMousePoint(e.x, e.y);
     }
     this.mouseDown = false;
-    // ToDo run batcher
 };
 UranusEditorEntitiesPaint.prototype.parseMousePoint = function (screenPosX, screenPosY) {
     var camera = editor.call("camera:current").camera;
@@ -2867,18 +2892,30 @@ UranusEditorEntitiesPaint.prototype.parseMousePoint = function (screenPosX, scre
     }
 };
 UranusEditorEntitiesPaint.prototype.clearEntitiesInPoint = function (point) {
-    if (!this.parentItem) {
-        return false;
-    }
     var center = this.vec.copy(point);
-    // --- iterate the instances and remove ones in the bounding area
-    this.parentItem.get("children").forEach(function (guid) {
-        var item = editor.call("entities:get", guid);
-        if (item &&
-            center.distance(item.entity.getPosition()) <= this.brushDistance) {
-            editor.call("entities:removeEntity", item);
+    if (!this.streamingData) {
+        if (!this.parentItem) {
+            return false;
         }
-    }.bind(this));
+        // --- iterate the instances and remove ones in the bounding area
+        this.parentItem.get("children").forEach(function (guid) {
+            var item = editor.call("entities:get", guid);
+            if (item &&
+                center.distance(item.entity.getPosition()) <= this.brushDistance) {
+                editor.call("entities:removeEntity", item);
+            }
+        }.bind(this));
+    }
+    else {
+        // --- get a list of all instances
+        var instances = this.filterInstances();
+        instances.forEach(function (instanceIndex) {
+            var instance = this.getInstanceData(instanceIndex);
+            if (center.distance(instance.position) <= this.brushDistance) {
+                this.streamingData.splice(instanceIndex, 10);
+            }
+        }.bind(this));
+    }
     // --- update renderer if required
     if (this.hardwareInstancing) {
         this.updateHardwareInstancing();
@@ -2938,15 +2975,17 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
     // --- find bank item
     var bankItem = editor.call("entities:get", this.spawnEntity._guid);
     var bankChildren = bankItem.get("children");
+    var bankIndex = 0;
     if (bankChildren && bankChildren.length > 0) {
-        var randomGuid = bankChildren[Math.floor(Math.random() * bankChildren.length)];
+        bankIndex = Math.floor(Math.random() * bankChildren.length);
+        var randomGuid = bankChildren[bankIndex];
         bankItem = editor.call("entities:get", randomGuid);
     }
     if (!bankItem) {
         return false;
     }
     var item;
-    var referenceEntity;
+    var referenceEntity = bankItem.entity;
     // --- if we are using HW instancing, we spawn an empty entity (no model or other components)
     // if (this.hardwareInstancing) {
     //   item = editor.call("entities:new", {
@@ -2961,21 +3000,23 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
     //   item = Uranus.Editor.duplicateEntities([bankItem], this.parentItem)[0];
     //   referenceEntity = item.entity;
     // }
-    item = Uranus.Editor.duplicateEntities([bankItem], this.parentItem)[0];
-    referenceEntity = item.entity;
-    // --- remove components
-    this.componentsToClear.forEach(function (componentName) {
-        item.unset("components." + componentName);
-    });
-    // --- clear LOD children if HW instancing and LOD is enabled
-    if (this.hardwareInstancing === true && this.useLOD) {
-        item.get("children").forEach(function (child) {
-            var removeEntity = editor.call("entities:get", child);
-            if (!removeEntity ||
-                removeEntity.get("tags").indexOf("uranus-lod-entity") === -1)
-                return;
-            editor.call("entities:removeEntity", removeEntity);
+    if (!this.streamingFile) {
+        item = Uranus.Editor.duplicateEntities([bankItem], this.parentItem)[0];
+        //referenceEntity = item.entity;
+        // --- remove components
+        this.componentsToClear.forEach(function (componentName) {
+            item.unset("components." + componentName);
         });
+        // --- clear LOD children if HW instancing and LOD is enabled
+        if (this.hardwareInstancing === true && this.useLOD) {
+            item.get("children").forEach(function (child) {
+                var removeEntity = editor.call("entities:get", child);
+                if (!removeEntity ||
+                    removeEntity.get("tags").indexOf("uranus-lod-entity") === -1)
+                    return;
+                editor.call("entities:removeEntity", removeEntity);
+            });
+        }
     }
     // --- scale them up
     var scale = this.vec.copy(referenceEntity.getLocalScale());
@@ -3013,30 +3054,51 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
         offset.y *= scale.y;
         offset.z *= scale.z;
     }
-    item.history.enabled = false;
-    item.set("enabled", true);
-    item.set("position", [
-        position.x + offset.x,
-        position.y + offset.y,
-        position.z + offset.z,
-    ]);
-    item.set("rotation", [angles.x, angles.y, angles.z]);
-    item.set("scale", [scale.x, scale.y, scale.z]);
-    item.history.enabled = true;
+    if (!this.streamingFile) {
+        item.history.enabled = false;
+        item.set("enabled", true);
+        item.set("position", [
+            position.x + offset.x,
+            position.y + offset.y,
+            position.z + offset.z,
+        ]);
+        item.set("rotation", [angles.x, angles.y, angles.z]);
+        item.set("scale", [scale.x, scale.y, scale.z]);
+        item.history.enabled = true;
+    }
+    else {
+        // --- save streaming info
+        this.streamingData.push(bankIndex);
+        this.streamingData.push(this.roundNumber(position.x + offset.x, 1e3));
+        this.streamingData.push(this.roundNumber(position.y + offset.y, 1e3));
+        this.streamingData.push(this.roundNumber(position.z + offset.z, 1e3));
+        this.streamingData.push(this.roundNumber(angles.x, 1e3));
+        this.streamingData.push(this.roundNumber(angles.y, 1e3));
+        this.streamingData.push(this.roundNumber(angles.z, 1e3));
+        this.streamingData.push(this.roundNumber(scale.x, 1e3));
+        this.streamingData.push(this.roundNumber(scale.y, 1e3));
+        this.streamingData.push(this.roundNumber(scale.z, 1e3));
+    }
 };
 UranusEditorEntitiesPaint.prototype.clearEditorInstances = function () {
-    var items = editor.call("selector:items");
-    if (!items || items.length === 0) {
-        return false;
-    }
-    // --- parent item to add new items
-    var parentItem = items[0];
-    parentItem.get("children").forEach(function (guid) {
-        var item = editor.call("entities:get", guid);
-        if (item) {
-            editor.call("entities:removeEntity", item);
+    if (!this.streamingFile) {
+        var items = editor.call("selector:items");
+        if (!items || items.length === 0) {
+            return false;
         }
-    });
+        // --- parent item to add new items
+        var parentItem = items[0];
+        parentItem.get("children").forEach(function (guid) {
+            var item = editor.call("entities:get", guid);
+            if (item) {
+                editor.call("entities:removeEntity", item);
+            }
+        });
+    }
+    else {
+        this.streamingData = [];
+        this.saveStreamingData();
+    }
     // --- update renderer if required
     if (this.hardwareInstancing) {
         this.updateHardwareInstancing();
@@ -3092,7 +3154,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
         ? this.spawnEntity.children
         : [this.spawnEntity];
     var matrix = new pc.Mat4();
-    spawnEntities.forEach(function (spawnEntity) {
+    spawnEntities.forEach(function (spawnEntity, spawnEntityIndex) {
         if (this.useLOD === false && !spawnEntity.model)
             return true;
         if (this.useLOD === true && spawnEntity.children.length === 0)
@@ -3110,9 +3172,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
             entities = [spawnEntity];
         }
         // --- calculate number of instances
-        var instances = this.entity.find(function (child) {
-            return child.name === spawnEntity.name;
-        });
+        var instances = this.filterInstances(spawnEntity, spawnEntityIndex);
         var spawnScale = spawnEntity.getLocalScale();
         entities.forEach(function (lodEntity, lodIndex) {
             if (!lodEntity.model)
@@ -3131,17 +3191,17 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                 var boundingsOriginal = [];
                 var matrixIndex = 0;
                 for (var i = 0; i < instances.length; i++) {
-                    var instance = instances[i];
+                    var instance = this.getInstanceData(instances[i], spawnEntities);
                     // --- check if we are interested in this mesh instance
                     if (instance.name !== spawnEntity.name)
                         continue;
-                    var scale = instance.getLocalScale();
+                    var scale = instance.scale;
                     // --- calculate pivot point position
-                    this.vec1.copy(instance.getPosition());
+                    this.vec1.copy(instance.position);
                     this.vec1.x += offset.x * scale.x;
                     this.vec1.y += offset.y * scale.y;
                     this.vec1.z += offset.z * scale.z;
-                    matrix.setTRS(this.vec1, instance.getRotation(), scale);
+                    matrix.setTRS(this.vec1, instance.rotation, scale);
                     // copy matrix elements into array of floats
                     for (var m = 0; m < 16; m++) {
                         matrices[matrixIndex] = matrix.data[m];
@@ -3181,7 +3241,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         : [this.spawnEntity];
     var cullingEnabled = this.cullingCamera && this.cullingCamera.camera;
     var frustum = cullingEnabled ? this.cullingCamera.camera.frustum : null;
-    var cameraPos = this.cullingCamera.getPosition();
+    var cameraPos = cullingEnabled ? this.cullingCamera.getPosition() : null;
     spawnEntities.forEach(function (spawnEntity) {
         if (this.useLOD === false && !spawnEntity.model)
             return true;
@@ -3254,7 +3314,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                         visibleCount++;
                         var matrix = matricesList[i];
                         // --- check if we will be updating translations
-                        if (this.isStatic) {
+                        if (this.isStatic === false && !this.streamingFile) {
                             var scale = instance.getLocalScale();
                             // --- calculate pivot point position
                             this.vec1.copy(instance.getPosition());
@@ -3311,6 +3371,76 @@ UranusEditorEntitiesPaint.prototype.isLodEntity = function (entity) {
     else {
         return entity.tags.has("uranus-lod-entity");
     }
+};
+UranusEditorEntitiesPaint.prototype.roundNumber = function (x, base) {
+    // base can be 1e3, 1e3 etc
+    return Math.round(x * base) / base;
+};
+UranusEditorEntitiesPaint.prototype.loadStreamingData = function () {
+    if (this.streamingFile) {
+        return Array.isArray(this.streamingFile.resources) &&
+            this.streamingFile.resources.length >= 10
+            ? this.streamingFile.resources
+            : [];
+    }
+    else {
+        return [];
+    }
+};
+UranusEditorEntitiesPaint.prototype.saveStreamingData = function () {
+    var url = "https://playcanvas.com/api/assets/" + this.streamingFile.id;
+    var form = new FormData();
+    form.append("name", "" + this.streamingFile.name);
+    form.append("file", new Blob([JSON.stringify(this.streamingData)]), this.streamingFile.name);
+    fetch(url, {
+        method: "PUT",
+        headers: {
+            Authorization: "Bearer " + this.playcanvasToken,
+        },
+        body: form,
+    });
+};
+UranusEditorEntitiesPaint.prototype.filterInstances = function (spawnEntity, spawnEntityIndex) {
+    if (!this.streamingFile) {
+        if (spawnEntity) {
+            return this.entity.find(function (child) {
+                return child.name === spawnEntity.name;
+            });
+        }
+        else {
+            return this.entity.children;
+        }
+    }
+    else {
+        var instances = [];
+        for (var i = 0; i < this.streamingData.length; i += 10) {
+            var index = this.streamingData[i];
+            if (!spawnEntityIndex !== null ||
+                (spawnEntityIndex !== null && index === spawnEntityIndex)) {
+                instances.push(i);
+            }
+        }
+        return instances;
+    }
+};
+UranusEditorEntitiesPaint.prototype.getInstanceData = function (pointer, spawnEntities) {
+    if (!this.streamingFile) {
+        var entity = pointer;
+        this.instanceData.name = entity.name;
+        this.instanceData.position.copy(entity.getPosition());
+        this.instanceData.rotation.copy(entity.getRotation());
+        this.instanceData.scale.copy(entity.getLocalScale());
+    }
+    else {
+        var data = this.streamingData;
+        this.instanceData.name = spawnEntities
+            ? spawnEntities[data[pointer]].name
+            : undefined;
+        this.instanceData.position.set(data[pointer + 1], data[pointer + 2], data[pointer + 3]);
+        this.instanceData.rotation.setFromEulerAngles(data[pointer + 4], data[pointer + 5], data[pointer + 6]);
+        this.instanceData.scale.set(data[pointer + 7], data[pointer + 8], data[pointer + 9]);
+    }
+    return this.instanceData;
 };
 var UranusEffectAnimateMaterial = pc.createScript("uranusEffectAnimateMaterial");
 UranusEffectAnimateMaterial.attributes.add("inEditor", {

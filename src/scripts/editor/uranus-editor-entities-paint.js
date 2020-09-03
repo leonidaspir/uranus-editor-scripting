@@ -1,4 +1,7 @@
-// ToDo optimize deletion time
+// Hide after should be a number, not true/false
+// Add a bounding box for the whole instances chunk to stop calculating vis if all of them are out of view
+// Handle async loading of the streaming file
+
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
@@ -140,10 +143,10 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
 
   this.tempSphere = { center: null, radius: 0.5 };
   this.lodDistance = [
-    this.lodLevels.x,
-    this.lodLevels.y,
-    this.lodLevels.z,
-    this.lodLevels.w,
+    this.lodLevels.x * this.lodLevels.x,
+    this.lodLevels.y * this.lodLevels.y,
+    this.lodLevels.z * this.lodLevels.z,
+    this.lodLevels.w * this.lodLevels.w,
   ];
 
   this.streamingData = this.loadStreamingData();
@@ -154,6 +157,12 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     rotation: new pc.Quat(),
     scale: new pc.Vec3(),
   };
+
+  this.hiddenCamera = this.cullingCamera.clone();
+
+  if (this.hideAfter) {
+    this.hiddenCamera.camera.farClip = this.lodLevels.w;
+  }
 
   if (this.hardwareInstancing) {
     this.enableHardwareInstancing();
@@ -306,8 +315,23 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
     this.prepareComponentsToClear(value);
   }
 
+  if (this.cullingCamera && property === "hideAfter") {
+    this.hiddenCamera.camera.farClip = value
+      ? this.lodLevels.w
+      : this.cullingCamera.camera.farClip;
+  }
+
   if (property === "lodLevels") {
-    this.lodDistance = [value.x, value.y, value.z, value.w];
+    this.lodDistance = [
+      value.x * value.x,
+      value.y * value.y,
+      value.z * value.z,
+      value.w * value.w,
+    ];
+
+    if (this.hideAfter) {
+      this.hiddenCamera.camera.farClip = value.w;
+    }
   }
 };
 
@@ -1003,15 +1027,25 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
   var app = this.app;
   var isStatic = this.isStatic === false || this.streamingFile;
-  var hideAfter = this.hideAfter;
   var useLOD = this.useLOD;
   var vec = this.vec;
   var vec1 = this.vec1;
   var lodDistance = this.lodDistance;
   var lodEntities = this.lodEntities;
+  var self = this;
 
   var frustum = cullingEnabled ? this.cullingCamera.camera.frustum : null;
   var cameraPos = cullingEnabled ? this.cullingCamera.getPosition() : null;
+
+  // --- use custom culling, if required
+  if (this.hideAfter) {
+    this.hiddenCamera.setPosition(cameraPos);
+    this.hiddenCamera.setRotation(this.cullingCamera.getRotation());
+
+    app.renderer.updateCameraFrustum(this.hiddenCamera.camera.camera);
+
+    frustum = this.hiddenCamera.camera.frustum;
+  }
 
   this.spawnEntities.forEach(function (spawnEntity) {
     if (useLOD === false && !spawnEntity.model) return true;
@@ -1021,8 +1055,6 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     var spawnScale = spawnEntity.getLocalScale();
 
     var entities = lodEntities[spawnEntity._guid];
-
-    console.log("---");
 
     entities.forEach(function (lodEntity, lodIndex) {
       lodEntity.model.meshInstances.forEach(function (
@@ -1052,6 +1084,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         // --- find visible instances
         var visibleCount = 0;
         var matrixIndex = 0;
+        var distanceFromCamera;
 
         for (var i = 0; i < instances.length; i++) {
           var instance = instances[i];
@@ -1064,7 +1097,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                   .culled[i]
             : 0;
 
-          var distanceFromCamera = false;
+          distanceFromCamera = false;
 
           // --- if LOD is used, we have a last step before rendering this instance: check if it's the active LOD
           if (useLOD === true) {
@@ -1077,7 +1110,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
               distanceFromCamera =
                 lodIndex === 0
-                  ? cameraPos.distance(bounding.center)
+                  ? self.distanceSq(cameraPos, bounding.center)
                   : entities[0].model.meshInstances[meshInstanceIndex]
                       .cullingData.distances[i];
 
@@ -1105,17 +1138,6 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
               if (instanceLodIndex !== activeLodIndex) {
                 visible = 0;
               }
-            }
-          }
-
-          if (hideAfter === true && visible > 0) {
-            // --- check if the distance to the camera has already been calculated, otherwise calculate
-            if (!distanceFromCamera) {
-              distanceFromCamera = cameraPos.distance(bounding.center);
-            }
-
-            if (distanceFromCamera >= lodDistance[3]) {
-              visible = 0;
             }
           }
 
@@ -1149,11 +1171,6 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         // --- update the vertex buffer, by replacing the current one (uses the same bufferId)
         var vertexBuffer = meshInstance.instancingData.vertexBuffer;
 
-        // var primitive =
-        //   meshInstance.mesh.primitive[meshInstance.renderStyle];
-        // app.graphicsDevice._primsPerFrame[primitive.type] -=
-        //   primitive.count * instances.length * 2;
-
         // stats update
         app.graphicsDevice._vram.vb -= vertexBuffer.numBytes;
 
@@ -1164,8 +1181,6 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
         // stats update
         app.graphicsDevice._vram.vb += vertexBuffer.numBytes;
-        // app.graphicsDevice._primsPerFrame[primitive.type] +=
-        //   primitive.count * visibleCount * 2;
 
         vertexBuffer.setData(subarray);
         meshInstance.instancingData.count = visibleCount;
@@ -1318,4 +1333,11 @@ UranusEditorEntitiesPaint.prototype.getInstanceData = function (
   }
 
   return this.instanceData;
+};
+
+UranusEditorEntitiesPaint.prototype.distanceSq = function (lhs, rhs) {
+  var x = lhs.x - rhs.x;
+  var y = lhs.y - rhs.y;
+  var z = lhs.z - rhs.z;
+  return x * x + y * y + z * z;
 };

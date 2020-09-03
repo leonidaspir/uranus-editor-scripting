@@ -3182,6 +3182,19 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
         // --- calculate number of instances
         var instances = this.filterInstances(spawnEntity, spawnEntityIndex);
         if (instances.length === 0) {
+            // --- if no instances, and we have a vertex buffer, clear it
+            entities.forEach(function (lodEntity) {
+                if (!lodEntity.model)
+                    return true;
+                lodEntity.model.meshInstances.forEach(function (meshInstance) {
+                    if (meshInstance.instancingData &&
+                        meshInstance.instancingData.vertexBuffer) {
+                        meshInstance.instancingData.vertexBuffer.destroy();
+                    }
+                    meshInstance.setInstancing();
+                    meshInstance.cullingData = undefined;
+                });
+            });
             return true;
         }
         var spawnScale = spawnEntity.getLocalScale();
@@ -3269,7 +3282,9 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         if (useLOD === true && spawnEntity.children.length === 0)
             return true;
         var spawnScale = spawnEntity.getLocalScale();
-        lodEntities[spawnEntity._guid].forEach(function (lodEntity, lodIndex) {
+        var entities = lodEntities[spawnEntity._guid];
+        console.log("---");
+        entities.forEach(function (lodEntity, lodIndex) {
             lodEntity.model.meshInstances.forEach(function (meshInstance, meshInstanceIndex) {
                 if (!meshInstance.cullingData)
                     return false;
@@ -3299,7 +3314,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                             : entities[0].model.meshInstances[meshInstanceIndex].cullingData
                                 .culled[i]
                         : 0;
-                    var distanceFromCamera;
+                    var distanceFromCamera = false;
                     // --- if LOD is used, we have a last step before rendering this instance: check if it's the active LOD
                     if (useLOD === true) {
                         if (lodIndex === 0) {

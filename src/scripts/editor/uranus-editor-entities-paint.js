@@ -872,6 +872,23 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
       var instances = this.filterInstances(spawnEntity, spawnEntityIndex);
 
       if (instances.length === 0) {
+        // --- if no instances, and we have a vertex buffer, clear it
+        entities.forEach(function (lodEntity) {
+          if (!lodEntity.model) return true;
+
+          lodEntity.model.meshInstances.forEach(function (meshInstance) {
+            if (
+              meshInstance.instancingData &&
+              meshInstance.instancingData.vertexBuffer
+            ) {
+              meshInstance.instancingData.vertexBuffer.destroy();
+            }
+
+            meshInstance.setInstancing();
+            meshInstance.cullingData = undefined;
+          });
+        });
+
         return true;
       }
 
@@ -1003,7 +1020,11 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
     var spawnScale = spawnEntity.getLocalScale();
 
-    lodEntities[spawnEntity._guid].forEach(function (lodEntity, lodIndex) {
+    var entities = lodEntities[spawnEntity._guid];
+
+    console.log("---");
+
+    entities.forEach(function (lodEntity, lodIndex) {
       lodEntity.model.meshInstances.forEach(function (
         meshInstance,
         meshInstanceIndex
@@ -1043,7 +1064,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                   .culled[i]
             : 0;
 
-          var distanceFromCamera;
+          var distanceFromCamera = false;
 
           // --- if LOD is used, we have a last step before rendering this instance: check if it's the active LOD
           if (useLOD === true) {

@@ -86,6 +86,9 @@ UranusEffectWater.prototype.initialize = function () {
   this.dirty = true;
   this.rendering = false;
 
+  this.color3 = new Float32Array(3);
+  this.color = new Float32Array(4);
+
   this.prepare();
 
   this.app.on(
@@ -288,14 +291,34 @@ UranusEffectWater.prototype.updateWater = function () {
 };
 
 UranusEffectWater.prototype.updateUniforms = function () {
+  if (!this.autoUpdate) {
+    return false;
+  }
+
   this.material.setParameter("waveWidth", this.waveWidth);
   this.material.setParameter("waveFrequency", this.waveFrequency);
   this.material.setParameter("waveFalloff", this.waveFalloff);
   this.material.setParameter("landWidth", this.landWidth);
   this.material.setParameter("depthFactor", this.depthFactor);
   this.material.setParameter("depthDiscard", this.depthDiscard);
-  this.material.setParameter("colorWater", this.colorWater.data3);
-  this.material.setParameter("colorWave", this.colorWave.data);
+
+  this.material.setParameter(
+    "colorWater",
+    this.mapColorToArray(this.colorWater, this.color3)
+  );
+  this.material.setParameter(
+    "colorWave",
+    this.mapColorToArray(this.colorWave, this.color)
+  );
+};
+
+UranusEffectWater.prototype.mapColorToArray = function (color, arr) {
+  arr[0] = color.r;
+  arr[1] = color.g;
+  arr[2] = color.b;
+  if (arr.length === 4) arr[3] = color.a;
+
+  return arr;
 };
 
 // update code called every frame

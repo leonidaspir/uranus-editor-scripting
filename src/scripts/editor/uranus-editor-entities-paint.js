@@ -780,6 +780,8 @@ UranusEditorEntitiesPaint.prototype.enableHardwareInstancing = function () {
       ? this.spawnEntity.children
       : [this.spawnEntity];
 
+  this.lodEntities = {};
+
   // --- loop through the materials of the spawn entity and enable hw instancing
   var materials = [];
 
@@ -864,7 +866,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
         entities = [spawnEntity];
       }
 
-      this.lodEntities = entities;
+      this.lodEntities[spawnEntity._guid] = entities;
 
       // --- calculate number of instances
       var instances = this.filterInstances(spawnEntity, spawnEntityIndex);
@@ -875,7 +877,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
 
       var spawnScale = spawnEntity.getLocalScale();
 
-      this.lodEntities.forEach(
+      entities.forEach(
         function (lodEntity, lodIndex) {
           if (!lodEntity.model) return true;
 
@@ -1001,7 +1003,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
     var spawnScale = spawnEntity.getLocalScale();
 
-    lodEntities.forEach(function (lodEntity, lodIndex) {
+    lodEntities[spawnEntity._guid].forEach(function (lodEntity, lodIndex) {
       lodEntity.model.meshInstances.forEach(function (
         meshInstance,
         meshInstanceIndex
@@ -1085,14 +1087,12 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
             }
           }
 
-          console.log(hideAfter === true, visible > 0);
           if (hideAfter === true && visible > 0) {
             // --- check if the distance to the camera has already been calculated, otherwise calculate
             if (!distanceFromCamera) {
               distanceFromCamera = cameraPos.distance(bounding.center);
             }
 
-            console.log(distanceFromCamera, lodDistance[3]);
             if (distanceFromCamera >= lodDistance[3]) {
               visible = 0;
             }

@@ -3116,6 +3116,7 @@ UranusEditorEntitiesPaint.prototype.enableHardwareInstancing = function () {
         this.spawnEntity.children[0] instanceof pc.Entity
             ? this.spawnEntity.children
             : [this.spawnEntity];
+    this.lodEntities = {};
     // --- loop through the materials of the spawn entity and enable hw instancing
     var materials = [];
     this.spawnEntities.forEach(function (spawnEntity) {
@@ -3177,14 +3178,14 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
         else {
             entities = [spawnEntity];
         }
-        this.lodEntities = entities;
+        this.lodEntities[spawnEntity._guid] = entities;
         // --- calculate number of instances
         var instances = this.filterInstances(spawnEntity, spawnEntityIndex);
         if (instances.length === 0) {
             return true;
         }
         var spawnScale = spawnEntity.getLocalScale();
-        this.lodEntities.forEach(function (lodEntity, lodIndex) {
+        entities.forEach(function (lodEntity, lodIndex) {
             if (!lodEntity.model)
                 return true;
             lodEntity.model.meshInstances.forEach(function (meshInstance) {
@@ -3268,7 +3269,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         if (useLOD === true && spawnEntity.children.length === 0)
             return true;
         var spawnScale = spawnEntity.getLocalScale();
-        lodEntities.forEach(function (lodEntity, lodIndex) {
+        lodEntities[spawnEntity._guid].forEach(function (lodEntity, lodIndex) {
             lodEntity.model.meshInstances.forEach(function (meshInstance, meshInstanceIndex) {
                 if (!meshInstance.cullingData)
                     return false;
@@ -3332,13 +3333,11 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                             }
                         }
                     }
-                    console.log(hideAfter === true, visible > 0);
                     if (hideAfter === true && visible > 0) {
                         // --- check if the distance to the camera has already been calculated, otherwise calculate
                         if (!distanceFromCamera) {
                             distanceFromCamera = cameraPos.distance(bounding.center);
                         }
-                        console.log(distanceFromCamera, lodDistance[3]);
                         if (distanceFromCamera >= lodDistance[3]) {
                             visible = 0;
                         }

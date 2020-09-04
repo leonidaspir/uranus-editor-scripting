@@ -2509,7 +2509,7 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
         this.editorInitialize(true);
     }
 };
-// Add a bounding box for the whole instances chunk to stop calculating vis if all of them are out of view
+// Pines with 0 hide after aren't showing up
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
     type: "boolean",

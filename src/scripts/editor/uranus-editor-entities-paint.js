@@ -1,4 +1,7 @@
-// Add a bounding box for the whole instances chunk to stop calculating vis if all of them are out of view
+// Pines with 0 hide after aren't showing up
+// HW kicking in requires reload
+// Non streaming approach -> erasing doesn't work
+// Option to disable per instance culling, e.g. for grass
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 
 UranusEditorEntitiesPaint.attributes.add("inEditor", {

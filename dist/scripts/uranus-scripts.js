@@ -2574,6 +2574,12 @@ UranusEditorEntitiesPaint.attributes.add("streamingFile", {
     title: "Streaming File",
     description: "If a json or binary asset file is provided, instead of spawning new entities in the hierarchy, all translation info will be saved to the file. This is ideal when spawning a huge number of static instances.",
 });
+UranusEditorEntitiesPaint.attributes.add("streamingPrecision", {
+    type: "number",
+    default: 1e3,
+    title: "Streaming Precision",
+    description: "Less digits provide smaller precision but also smaller file sizes",
+});
 UranusEditorEntitiesPaint.attributes.add("playcanvasToken", {
     type: "string",
     title: "Playcanvas Token",
@@ -3092,15 +3098,15 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
     else {
         // --- save streaming info
         this.streamingData.push(bankIndex);
-        this.streamingData.push(this.roundNumber(position.x + offset.x, 1e3));
-        this.streamingData.push(this.roundNumber(position.y + offset.y, 1e3));
-        this.streamingData.push(this.roundNumber(position.z + offset.z, 1e3));
-        this.streamingData.push(this.roundNumber(angles.x, 1e3));
-        this.streamingData.push(this.roundNumber(angles.y, 1e3));
-        this.streamingData.push(this.roundNumber(angles.z, 1e3));
-        this.streamingData.push(this.roundNumber(scale.x, 1e3));
-        this.streamingData.push(this.roundNumber(scale.y, 1e3));
-        this.streamingData.push(this.roundNumber(scale.z, 1e3));
+        this.streamingData.push(this.roundNumber(position.x + offset.x, this.streamingPrecision));
+        this.streamingData.push(this.roundNumber(position.y + offset.y, this.streamingPrecision));
+        this.streamingData.push(this.roundNumber(position.z + offset.z, this.streamingPrecision));
+        this.streamingData.push(this.roundNumber(angles.x, this.streamingPrecision));
+        this.streamingData.push(this.roundNumber(angles.y, this.streamingPrecision));
+        this.streamingData.push(this.roundNumber(angles.z, this.streamingPrecision));
+        this.streamingData.push(this.roundNumber(scale.x, this.streamingPrecision));
+        this.streamingData.push(this.roundNumber(scale.y, this.streamingPrecision));
+        this.streamingData.push(this.roundNumber(scale.z, this.streamingPrecision));
     }
 };
 UranusEditorEntitiesPaint.prototype.clearEditorInstances = function () {

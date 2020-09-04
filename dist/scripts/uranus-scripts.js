@@ -2647,7 +2647,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     if (this.hideAfter > 0) {
         this.hiddenCamera.camera.farClip = this.hideAfter;
         this.cell = new pc.Vec3();
-        this.cells = {};
+        this.cells = undefined;
         this.cellSize = new pc.Vec3(this.hideAfter, this.hideAfter, this.hideAfter);
     }
     // --- load first any streaming data available
@@ -2661,10 +2661,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
 };
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
     if (this.hardwareInstancing) {
-        var t0 = performance.now();
         this.cullHardwareInstancing();
-        var t1 = performance.now();
-        console.log("Call to doSomething took " + (t1 - t0) + " milliseconds.");
     }
 };
 UranusEditorEntitiesPaint.prototype.editorInitialize = function () {
@@ -2765,6 +2762,9 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
         this.hiddenCamera.camera.farClip =
             hideAfter > 0 ? hideAfter : this.cullingCamera.camera.farClip;
         this.cellSize = new pc.Vec3(hideAfter * 2, hideAfter * 2, hideAfter * 2);
+        if (this.hardwareInstancing) {
+            this.updateHardwareInstancing();
+        }
     }
     if (property === "lodLevels") {
         this.lodDistance = [
@@ -3190,6 +3190,8 @@ UranusEditorEntitiesPaint.prototype.enableHardwareInstancing = function () {
 UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
     var matrix = new pc.Mat4();
     var spawnEntities = this.spawnEntities;
+    this.cells = {};
+    var count = 0;
     spawnEntities.forEach(function (spawnEntity, spawnEntityIndex) {
         if (this.useLOD === false && !spawnEntity.model)
             return true;
@@ -3274,6 +3276,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                         }
                         cellsList[i] = this.cells[cellGuid];
                     }
+                    count++;
                 }
                 // --- create the vertex buffer
                 if (meshInstance.instancingData &&
@@ -3291,7 +3294,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                     lodIndex: lodIndex,
                     instances: instances,
                     boundings: boundingsOriginal,
-                    culled: this.useLOD && lodIndex === 0 ? [] : undefined,
+                    culledList: this.useLOD && lodIndex === 0 ? [] : undefined,
                     distances: this.useLOD && lodIndex === 0 ? [] : undefined,
                     matrices: matrices.slice(0),
                     matricesList: matricesList,
@@ -3300,6 +3303,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
             }.bind(this));
         }.bind(this));
     }.bind(this));
+    console.log(this.entity.name, "instances", count);
 };
 UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     var cullingEnabled = this.cullingCamera && this.cullingCamera.camera;
@@ -3361,30 +3365,30 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                 var matrixIndex = 0;
                 var distanceFromCamera;
                 var visible = 0;
+                var cellsList = entities[0].model.meshInstances[meshInstanceIndex].cullingData
+                    .cellsList;
+                var culledList = entities[0].model.meshInstances[meshInstanceIndex].cullingData
+                    .culledList;
                 for (var i = 0; i < instances.length; i++) {
                     var instance = instances[i];
                     var bounding = boundings[i];
-                    visible = 1;
                     // --- check first if the containing cell is visible
                     if (hideAfter > 0) {
-                        visible =
-                            entities[0].model.meshInstances[meshInstanceIndex].cullingData
-                                .cellsList[i].isVisible;
+                        visible = cellsList[i].isVisible ? 1 : 0;
                     }
                     // --- frustum culling
                     if (visible > 0) {
                         visible = cullingEnabled
                             ? lodIndex === 0
                                 ? frustum.containsSphere(bounding)
-                                : entities[0].model.meshInstances[meshInstanceIndex].cullingData
-                                    .culled[i]
+                                : culledList[i]
                             : 0;
                     }
                     distanceFromCamera = false;
                     // --- if LOD is used, we have a last step before rendering this instance: check if it's the active LOD
                     if (useLOD === true) {
                         if (lodIndex === 0) {
-                            meshInstance.cullingData.culled[i] = visible;
+                            culledList[i] = visible;
                         }
                         if (visible > 0) {
                             var instanceLodIndex = meshInstance.cullingData.lodIndex;

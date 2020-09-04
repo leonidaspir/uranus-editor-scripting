@@ -2509,7 +2509,7 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
         this.editorInitialize(true);
     }
 };
-// ToDo optimize deletion time
+// Add a bounding box for the whole instances chunk to stop calculating vis if all of them are out of view
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
     type: "boolean",
@@ -2571,9 +2571,8 @@ UranusEditorEntitiesPaint.attributes.add("alignThem", {
 });
 UranusEditorEntitiesPaint.attributes.add("streamingFile", {
     type: "asset",
-    assetType: "json",
     title: "Streaming File",
-    description: "If a .json asset file is provided, instead of spawning new entities in the hierarchy, all translation info will be saved to the file. This is ideal when spawning a huge number of static instances.",
+    description: "If a json or binary asset file is provided, instead of spawning new entities in the hierarchy, all translation info will be saved to the file. This is ideal when spawning a huge number of static instances.",
 });
 UranusEditorEntitiesPaint.attributes.add("playcanvasToken", {
     type: "string",
@@ -2603,10 +2602,10 @@ UranusEditorEntitiesPaint.attributes.add("lodLevels", {
     title: "LOD Levels",
 });
 UranusEditorEntitiesPaint.attributes.add("hideAfter", {
-    type: "boolean",
-    default: false,
+    type: "number",
+    default: 0,
     title: "Hide After",
-    description: "Cull the distance after the LOD3 distance is reached, this works even for instances that don't use LOD.",
+    description: "Cull the instance after a distance from camera, this works even for instances that don't use LOD. Set to 0 to disable.",
 });
 UranusEditorEntitiesPaint.attributes.add("cullingCamera", {
     type: "entity",
@@ -2631,7 +2630,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         this.lodLevels.z * this.lodLevels.z,
         this.lodLevels.w * this.lodLevels.w,
     ];
-    this.streamingData = this.loadStreamingData();
+    this.spawnEntities = [];
     this.instanceData = {
         name: undefined,
         position: new pc.Vec3(),
@@ -2639,13 +2638,17 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         scale: new pc.Vec3(),
     };
     this.hiddenCamera = this.cullingCamera.clone();
-    if (this.hideAfter) {
-        this.hiddenCamera.camera.farClip = this.lodLevels.w;
+    if (this.hideAfter > 0) {
+        this.hiddenCamera.camera.farClip = this.hideAfter;
     }
-    if (this.hardwareInstancing) {
-        this.enableHardwareInstancing();
-        this.updateHardwareInstancing();
-    }
+    // --- load first any streaming data available
+    this.loadStreamingData().then(function (streamingData) {
+        this.streamingData = streamingData;
+        if (this.hardwareInstancing) {
+            this.enableHardwareInstancing();
+            this.updateHardwareInstancing();
+        }
+    }.bind(this));
 };
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
     if (this.hardwareInstancing) {
@@ -2747,9 +2750,8 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
         this.prepareComponentsToClear(value);
     }
     if (this.cullingCamera && property === "hideAfter") {
-        this.hiddenCamera.camera.farClip = value
-            ? this.lodLevels.w
-            : this.cullingCamera.camera.farClip;
+        this.hiddenCamera.camera.farClip =
+            value > 0 ? value : this.cullingCamera.camera.farClip;
     }
     if (property === "lodLevels") {
         this.lodDistance = [
@@ -2758,9 +2760,6 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
             value.z * value.z,
             value.w * value.w,
         ];
-        if (this.hideAfter) {
-            this.hiddenCamera.camera.farClip = value.w;
-        }
     }
 };
 UranusEditorEntitiesPaint.prototype.setBuildingState = function (btnBuild, dontTrigger) {
@@ -3294,7 +3293,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     var frustum = cullingEnabled ? this.cullingCamera.camera.frustum : null;
     var cameraPos = cullingEnabled ? this.cullingCamera.getPosition() : null;
     // --- use custom culling, if required
-    if (this.hideAfter) {
+    if (this.hideAfter > 0) {
         this.hiddenCamera.setPosition(cameraPos);
         this.hiddenCamera.setRotation(this.cullingCamera.getRotation());
         app.renderer.updateCameraFrustum(this.hiddenCamera.camera.camera);
@@ -3448,15 +3447,21 @@ UranusEditorEntitiesPaint.prototype.roundNumber = function (x, base) {
     return Math.round(x * base) / base;
 };
 UranusEditorEntitiesPaint.prototype.loadStreamingData = function () {
-    if (this.streamingFile) {
-        return Array.isArray(this.streamingFile.resources) &&
-            this.streamingFile.resources.length >= 10
-            ? this.streamingFile.resources
-            : [];
-    }
-    else {
-        return [];
-    }
+    return new Promise(function (resolve) {
+        if (this.streamingFile) {
+            this.streamingFile.ready(function () {
+                var data = Array.isArray(this.streamingFile.resources) &&
+                    this.streamingFile.resources.length >= 10
+                    ? this.streamingFile.resources
+                    : [];
+                resolve(data);
+            }.bind(this));
+            this.app.assets.load(this.streamingFile);
+        }
+        else {
+            resolve([]);
+        }
+    }.bind(this));
 };
 UranusEditorEntitiesPaint.prototype.saveStreamingData = function () {
     var url = "https://playcanvas.com/api/assets/" + this.streamingFile.id;

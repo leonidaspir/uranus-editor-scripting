@@ -1,7 +1,4 @@
-// Hide after should be a number, not true/false
 // Add a bounding box for the whole instances chunk to stop calculating vis if all of them are out of view
-// Handle async loading of the streaming file
-
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
@@ -71,10 +68,9 @@ UranusEditorEntitiesPaint.attributes.add("alignThem", {
 
 UranusEditorEntitiesPaint.attributes.add("streamingFile", {
   type: "asset",
-  assetType: "json",
   title: "Streaming File",
   description:
-    "If a .json asset file is provided, instead of spawning new entities in the hierarchy, all translation info will be saved to the file. This is ideal when spawning a huge number of static instances.",
+    "If a json or binary asset file is provided, instead of spawning new entities in the hierarchy, all translation info will be saved to the file. This is ideal when spawning a huge number of static instances.",
 });
 
 UranusEditorEntitiesPaint.attributes.add("playcanvasToken", {
@@ -113,11 +109,11 @@ UranusEditorEntitiesPaint.attributes.add("lodLevels", {
 });
 
 UranusEditorEntitiesPaint.attributes.add("hideAfter", {
-  type: "boolean",
-  default: false,
+  type: "number",
+  default: 0,
   title: "Hide After",
   description:
-    "Cull the distance after the LOD3 distance is reached, this works even for instances that don't use LOD.",
+    "Cull the instance after a distance from camera, this works even for instances that don't use LOD. Set to 0 to disable.",
 });
 
 UranusEditorEntitiesPaint.attributes.add("cullingCamera", {
@@ -149,7 +145,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     this.lodLevels.w * this.lodLevels.w,
   ];
 
-  this.streamingData = this.loadStreamingData();
+  this.spawnEntities = [];
 
   this.instanceData = {
     name: undefined,
@@ -160,15 +156,22 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
 
   this.hiddenCamera = this.cullingCamera.clone();
 
-  if (this.hideAfter) {
-    this.hiddenCamera.camera.farClip = this.lodLevels.w;
+  if (this.hideAfter > 0) {
+    this.hiddenCamera.camera.farClip = this.hideAfter;
   }
 
-  if (this.hardwareInstancing) {
-    this.enableHardwareInstancing();
+  // --- load first any streaming data available
+  this.loadStreamingData().then(
+    function (streamingData) {
+      this.streamingData = streamingData;
 
-    this.updateHardwareInstancing();
-  }
+      if (this.hardwareInstancing) {
+        this.enableHardwareInstancing();
+
+        this.updateHardwareInstancing();
+      }
+    }.bind(this)
+  );
 };
 
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
@@ -316,9 +319,8 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
   }
 
   if (this.cullingCamera && property === "hideAfter") {
-    this.hiddenCamera.camera.farClip = value
-      ? this.lodLevels.w
-      : this.cullingCamera.camera.farClip;
+    this.hiddenCamera.camera.farClip =
+      value > 0 ? value : this.cullingCamera.camera.farClip;
   }
 
   if (property === "lodLevels") {
@@ -328,10 +330,6 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
       value.z * value.z,
       value.w * value.w,
     ];
-
-    if (this.hideAfter) {
-      this.hiddenCamera.camera.farClip = value.w;
-    }
   }
 };
 
@@ -1038,7 +1036,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
   var cameraPos = cullingEnabled ? this.cullingCamera.getPosition() : null;
 
   // --- use custom culling, if required
-  if (this.hideAfter) {
+  if (this.hideAfter > 0) {
     this.hiddenCamera.setPosition(cameraPos);
     this.hiddenCamera.setRotation(this.cullingCamera.getRotation());
 
@@ -1240,14 +1238,27 @@ UranusEditorEntitiesPaint.prototype.roundNumber = function (x, base) {
 };
 
 UranusEditorEntitiesPaint.prototype.loadStreamingData = function () {
-  if (this.streamingFile) {
-    return Array.isArray(this.streamingFile.resources) &&
-      this.streamingFile.resources.length >= 10
-      ? this.streamingFile.resources
-      : [];
-  } else {
-    return [];
-  }
+  return new Promise(
+    function (resolve) {
+      if (this.streamingFile) {
+        this.streamingFile.ready(
+          function () {
+            var data =
+              Array.isArray(this.streamingFile.resources) &&
+              this.streamingFile.resources.length >= 10
+                ? this.streamingFile.resources
+                : [];
+
+            resolve(data);
+          }.bind(this)
+        );
+
+        this.app.assets.load(this.streamingFile);
+      } else {
+        resolve([]);
+      }
+    }.bind(this)
+  );
 };
 
 UranusEditorEntitiesPaint.prototype.saveStreamingData = function () {

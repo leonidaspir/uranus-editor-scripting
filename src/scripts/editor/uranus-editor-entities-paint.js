@@ -166,6 +166,9 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
 
   if (this.hideAfter > 0) {
     this.hiddenCamera.camera.farClip = this.hideAfter;
+    this.cell = new pc.Vec3();
+    this.cells = {};
+    this.cellSize = new pc.Vec3(this.hideAfter, this.hideAfter, this.hideAfter);
   }
 
   // --- load first any streaming data available
@@ -184,7 +187,10 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
 
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
   if (this.hardwareInstancing) {
+    const t0 = performance.now();
     this.cullHardwareInstancing();
+    const t1 = performance.now();
+    console.log(`Call to doSomething took ${t1 - t0} milliseconds.`);
   }
 };
 
@@ -199,7 +205,6 @@ UranusEditorEntitiesPaint.prototype.editorInitialize = function () {
   this.lastPosition = new pc.Vec3();
 
   this.matrix = new pc.Mat4();
-  this.quat = new pc.Quat();
 
   this.x = new pc.Vec3();
   this.y = new pc.Vec3();
@@ -327,8 +332,12 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
   }
 
   if (this.cullingCamera && property === "hideAfter") {
+    var hideAfter = value;
+
     this.hiddenCamera.camera.farClip =
-      value > 0 ? value : this.cullingCamera.camera.farClip;
+      hideAfter > 0 ? hideAfter : this.cullingCamera.camera.farClip;
+
+    this.cellSize = new pc.Vec3(hideAfter * 2, hideAfter * 2, hideAfter * 2);
   }
 
   if (property === "lodLevels") {
@@ -557,7 +566,7 @@ UranusEditorEntitiesPaint.prototype.clearEntitiesInPoint = function (point) {
     );
   } else {
     // --- get a list of all instances
-    var instances = this.filterInstances();
+    var instances = this.filterInstances(null, null);
 
     instances.forEach(
       function (instanceIndex) {
@@ -955,6 +964,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
               var matrices = new Float32Array(instances.length * 16);
               var matricesList = [];
               var boundingsOriginal = [];
+              var cellsList = [];
 
               var matrixIndex = 0;
 
@@ -991,6 +1001,21 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                   meshInstance._aabb.halfExtents.length() * 2
                 );
                 boundingsOriginal[i] = bounding;
+
+                // --- add instance to cell
+                if (this.hideAfter > 0 && lodIndex === 0) {
+                  var cellPos = this.getCellPos(instance.position);
+                  var cellGuid = this.getCellGuid(cellPos);
+
+                  if (!this.cells[cellGuid]) {
+                    this.cells[cellGuid] = new pc.BoundingBox(
+                      cellPos.clone(),
+                      this.vec1.copy(this.cellSize).scale(2).clone()
+                    );
+                  }
+
+                  cellsList[i] = this.cells[cellGuid];
+                }
               }
 
               // --- create the vertex buffer
@@ -1027,6 +1052,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                 distances: this.useLOD && lodIndex === 0 ? [] : undefined,
                 matrices: matrices.slice(0),
                 matricesList: matricesList,
+                cellsList: this.hideAfter > 0 ? cellsList : undefined,
               };
             }.bind(this)
           );
@@ -1050,19 +1076,28 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
   var vec1 = this.vec1;
   var lodDistance = this.lodDistance;
   var lodEntities = this.lodEntities;
+  var hideAfter = this.hideAfter;
   var self = this;
 
   var frustum = cullingEnabled ? this.cullingCamera.camera.frustum : null;
   var cameraPos = cullingEnabled ? this.cullingCamera.getPosition() : null;
 
   // --- use custom culling, if required
-  if (this.hideAfter > 0) {
+  if (hideAfter > 0) {
     this.hiddenCamera.setPosition(cameraPos);
     this.hiddenCamera.setRotation(this.cullingCamera.getRotation());
 
     app.renderer.updateCameraFrustum(this.hiddenCamera.camera.camera);
 
     frustum = this.hiddenCamera.camera.frustum;
+  }
+
+  // --- update visibility cells
+  if (this.cells) {
+    for (const cellGuid in this.cells) {
+      var cell = this.cells[cellGuid];
+      cell.isVisible = cell.containsPoint(cameraPos);
+    }
   }
 
   this.spawnEntities.forEach(function (spawnEntity) {
@@ -1103,17 +1138,30 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         var visibleCount = 0;
         var matrixIndex = 0;
         var distanceFromCamera;
+        var visible = 0;
 
         for (var i = 0; i < instances.length; i++) {
           var instance = instances[i];
           var bounding = boundings[i];
 
-          var visible = cullingEnabled
-            ? lodIndex === 0
-              ? frustum.containsSphere(bounding)
-              : entities[0].model.meshInstances[meshInstanceIndex].cullingData
-                  .culled[i]
-            : 0;
+          visible = 1;
+
+          // --- check first if the containing cell is visible
+          if (hideAfter > 0) {
+            visible =
+              entities[0].model.meshInstances[meshInstanceIndex].cullingData
+                .cellsList[i].isVisible;
+          }
+
+          // --- frustum culling
+          if (visible > 0) {
+            visible = cullingEnabled
+              ? lodIndex === 0
+                ? frustum.containsSphere(bounding)
+                : entities[0].model.meshInstances[meshInstanceIndex].cullingData
+                    .culled[i]
+              : 0;
+          }
 
           distanceFromCamera = false;
 
@@ -1261,19 +1309,23 @@ UranusEditorEntitiesPaint.prototype.loadStreamingData = function () {
   return new Promise(
     function (resolve) {
       if (this.streamingFile) {
-        this.streamingFile.ready(
-          function () {
-            var data =
-              Array.isArray(this.streamingFile.resources) &&
-              this.streamingFile.resources.length >= 10
-                ? this.streamingFile.resources
-                : [];
+        var onLoad = function () {
+          var data =
+            Array.isArray(this.streamingFile.resources) &&
+            this.streamingFile.resources.length >= 10
+              ? this.streamingFile.resources
+              : [];
 
-            resolve(data);
-          }.bind(this)
-        );
+          resolve(data);
+        }.bind(this);
 
-        this.app.assets.load(this.streamingFile);
+        if (this.streamingFile.loaded) {
+          onLoad();
+        } else {
+          this.streamingFile.ready(onLoad);
+
+          this.app.assets.load(this.streamingFile);
+        }
       } else {
         resolve([]);
       }
@@ -1371,4 +1423,16 @@ UranusEditorEntitiesPaint.prototype.distanceSq = function (lhs, rhs) {
   var y = lhs.y - rhs.y;
   var z = lhs.z - rhs.z;
   return x * x + y * y + z * z;
+};
+
+UranusEditorEntitiesPaint.prototype.getCellPos = function (pos) {
+  this.cell.x = Math.floor(pos.x / this.cellSize.x) * this.cellSize.x;
+  this.cell.y = Math.floor(pos.y / this.cellSize.y) * this.cellSize.y;
+  this.cell.z = Math.floor(pos.z / this.cellSize.z) * this.cellSize.z;
+
+  return this.cell;
+};
+
+UranusEditorEntitiesPaint.prototype.getCellGuid = function (cell) {
+  return cell.x.toFixed(3) + "_" + cell.y.toFixed(3) + "_" + cell.z.toFixed(3);
 };

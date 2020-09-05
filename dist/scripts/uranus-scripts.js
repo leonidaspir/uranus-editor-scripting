@@ -3379,6 +3379,9 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                     if (hideAfter > 0) {
                         visible = cellsList[i].isVisible ? 1 : 0;
                     }
+                    else {
+                        visible = 1;
+                    }
                     // --- frustum culling
                     if (visible > 0) {
                         visible = cullingEnabled

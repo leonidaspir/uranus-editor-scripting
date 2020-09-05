@@ -2601,6 +2601,23 @@ UranusEditorEntitiesPaint.attributes.add("cullingCamera", {
     type: "entity",
     title: "Culling Camera",
 });
+UranusEditorEntitiesPaint.attributes.add("cellSize", {
+    type: "vec3",
+    default: [10, 10, 10],
+    title: "Cell Size",
+});
+UranusEditorEntitiesPaint.attributes.add("hideAfter", {
+    type: "number",
+    default: 0,
+    title: "Far Clip",
+    description: "Cull the instance after a distance from camera. Set to 0 to disable.",
+});
+UranusEditorEntitiesPaint.attributes.add("perInstanceCull", {
+    type: "boolean",
+    default: true,
+    title: "Per Instance Cull",
+    description: "If enabled instances will be culled based only on the visibility of their current cell. This is a great way to increase performance when a huge number of instances is parsed.",
+});
 UranusEditorEntitiesPaint.attributes.add("useLOD", {
     type: "boolean",
     default: false,
@@ -2612,18 +2629,6 @@ UranusEditorEntitiesPaint.attributes.add("lodLevels", {
     default: [10, 30, 50, 70],
     title: "LOD Levels",
 });
-UranusEditorEntitiesPaint.attributes.add("hideAfter", {
-    type: "number",
-    default: 0,
-    title: "Far Clip",
-    description: "Cull the instance after a distance from camera, this works even for instances that don't use LOD. Set to 0 to disable.",
-});
-UranusEditorEntitiesPaint.attributes.add("perInstanceCull", {
-    type: "boolean",
-    default: true,
-    title: "Per Instance Cull",
-    description: "If enabled instances will be culled based only on the visibility of their current cell. This is a great way to increase performance when a huge number of instances is parsed.",
-});
 UranusEditorEntitiesPaint.attributes.add("densityReduce", {
     type: "number",
     default: 0,
@@ -2631,6 +2636,13 @@ UranusEditorEntitiesPaint.attributes.add("densityReduce", {
     min: 0,
     precision: 0,
     description: "Number of instances to be skipped for each instance rendered, useful to increase the performance in lower end devices.",
+});
+UranusEditorEntitiesPaint.attributes.add("densityDistance", {
+    type: "number",
+    default: 0,
+    title: "Density Distance",
+    min: 0,
+    description: "The distance from the culling camera at which density reduce will be applied.",
 });
 UranusEditorEntitiesPaint.attributes.add("isStatic", {
     type: "boolean",
@@ -2651,6 +2663,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         this.lodLevels.z * this.lodLevels.z,
         this.lodLevels.w * this.lodLevels.w,
     ];
+    //this.densityDistance = this.densityDistance * this.densityDistance;
     this.spawnEntities = [];
     this.instanceData = {
         name: undefined,
@@ -2663,7 +2676,6 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         this.hiddenCamera.camera.farClip = this.hideAfter;
         this.cell = new pc.Vec3();
         this.cells = undefined;
-        this.cellSize = new pc.Vec3(this.hideAfter, this.hideAfter, this.hideAfter);
     }
     // --- load first any streaming data available
     this.loadStreamingData().then(function (streamingData) {
@@ -2776,7 +2788,6 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
         var hideAfter = value;
         this.hiddenCamera.camera.farClip =
             hideAfter > 0 ? hideAfter : this.cullingCamera.camera.farClip;
-        this.cellSize = new pc.Vec3(hideAfter * 2, hideAfter * 2, hideAfter * 2);
         if (this.hardwareInstancing) {
             this.updateHardwareInstancing();
         }
@@ -2788,6 +2799,9 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
             value.z * value.z,
             value.w * value.w,
         ];
+    }
+    if (property === "densityReduce") {
+        //this.densityDistance = value * value;
     }
 };
 UranusEditorEntitiesPaint.prototype.setBuildingState = function (btnBuild, dontTrigger) {
@@ -3289,7 +3303,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                         if (!this.cells[cellGuid]) {
                             var halfExtents = this.vec1.copy(this.cellSize).scale(2);
                             this.cells[cellGuid] = new pc.BoundingBox(cellPos.clone(), halfExtents.clone());
-                            this.cells[cellGuid].sphere = new pc.BoundingSphere(cellPos.clone(), this.cellSize.x);
+                            this.cells[cellGuid].sphere = new pc.BoundingSphere(cellPos.clone(), this.cellSize.x * 1.5);
                         }
                         cellsList[i] = this.cells[cellGuid];
                     }
@@ -3337,6 +3351,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     var hideAfter = this.hideAfter;
     var perInstanceCull = this.perInstanceCull;
     var densityReduce = this.densityReduce;
+    var densityDistance = this.densityDistance;
     var self = this;
     var frustum = cullingEnabled ? this.cullingCamera.camera.frustum : null;
     var cameraPos = cullingEnabled ? this.cullingCamera.getPosition() : null;
@@ -3351,8 +3366,9 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     if (this.cells) {
         for (var cellGuid in this.cells) {
             var cell = this.cells[cellGuid];
-            //cell.isVisible = cell.containsPoint(cameraPos);
             cell.isVisible = frustum.containsSphere(cell.sphere);
+            cell.distanceFromCamera = self.distanceSq(cameraPos, cell.center);
+            cell.distanceFromCamera = cameraPos.distance(cell.center);
         }
     }
     this.spawnEntities.forEach(function (spawnEntity) {
@@ -3390,8 +3406,10 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                 var culledList = entities[0].model.meshInstances[meshInstanceIndex].cullingData
                     .culledList;
                 for (var i = 0; i < instances.length; i++) {
+                    var cell = cellsList[i];
                     activeDensity++;
-                    if (activeDensity < densityReduce) {
+                    if (cell.distanceFromCamera >= densityDistance &&
+                        activeDensity < densityReduce) {
                         continue;
                     }
                     activeDensity = 0;
@@ -3399,7 +3417,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                     var bounding = boundings[i];
                     // --- check first if the containing cell is visible
                     if (hideAfter > 0) {
-                        visible = cellsList[i].isVisible;
+                        visible = cell.isVisible;
                     }
                     else {
                         visible = 1;

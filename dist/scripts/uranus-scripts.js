@@ -2624,6 +2624,14 @@ UranusEditorEntitiesPaint.attributes.add("perInstanceCull", {
     title: "Per Instance Cull",
     description: "If enabled instances will be culled based only on the visibility of their current cell. This is a great way to increase performance when a huge number of instances is parsed.",
 });
+UranusEditorEntitiesPaint.attributes.add("densityReduce", {
+    type: "number",
+    default: 0,
+    title: "Density Reduce",
+    min: 0,
+    precision: 0,
+    description: "Number of instances to be skipped for each instance rendered, useful to increase the performance in lower end devices.",
+});
 UranusEditorEntitiesPaint.attributes.add("isStatic", {
     type: "boolean",
     default: false,
@@ -3328,6 +3336,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     var lodEntities = this.lodEntities;
     var hideAfter = this.hideAfter;
     var perInstanceCull = this.perInstanceCull;
+    var densityReduce = this.densityReduce;
     var self = this;
     var frustum = cullingEnabled ? this.cullingCamera.camera.frustum : null;
     var cameraPos = cullingEnabled ? this.cullingCamera.getPosition() : null;
@@ -3375,11 +3384,17 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                 var visibleCount = 0;
                 var matrixIndex = 0;
                 var visible = 0;
+                var activeDensity = densityReduce;
                 var cellsList = entities[0].model.meshInstances[meshInstanceIndex].cullingData
                     .cellsList;
                 var culledList = entities[0].model.meshInstances[meshInstanceIndex].cullingData
                     .culledList;
                 for (var i = 0; i < instances.length; i++) {
+                    activeDensity++;
+                    if (activeDensity < densityReduce) {
+                        continue;
+                    }
+                    activeDensity = 0;
                     var instance = instances[i];
                     var bounding = boundings[i];
                     // --- check first if the containing cell is visible

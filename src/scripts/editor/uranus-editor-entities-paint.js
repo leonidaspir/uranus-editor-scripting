@@ -1,6 +1,7 @@
 // HW kicking in requires reload
 // Non streaming approach -> erasing doesn't work
 // Make editorAttr update logic work on runtime
+// ToDo implement WASM math: https://forum.playcanvas.com/t/solved-load-wasm-from-project-assets/14309/5?u=leonidas
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
@@ -1144,8 +1145,6 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     app.renderer.updateCameraFrustum(this.hiddenCamera.camera.camera);
 
     frustum = this.hiddenCamera.camera.frustum;
-
-    console.log(hideAfter);
   }
 
   // --- update visibility cells

@@ -3362,7 +3362,6 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         this.hiddenCamera.setRotation(this.cullingCamera.getRotation());
         app.renderer.updateCameraFrustum(this.hiddenCamera.camera.camera);
         frustum = this.hiddenCamera.camera.frustum;
-        console.log(hideAfter);
     }
     // --- update visibility cells
     if (this.cells) {

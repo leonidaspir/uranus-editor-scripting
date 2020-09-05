@@ -2509,10 +2509,8 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
         this.editorInitialize(true);
     }
 };
-// Pines with 0 hide after aren't showing up
 // HW kicking in requires reload
 // Non streaming approach -> erasing doesn't work
-// Option to disable per instance culling, e.g. for grass
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
     type: "boolean",
@@ -2599,6 +2597,10 @@ UranusEditorEntitiesPaint.attributes.add("removeComponents", {
     title: "Remove Components",
     description: "A comma separated list of entity compoments to be removed when spawning an instance. When using HW instancing the model component should be removed.",
 });
+UranusEditorEntitiesPaint.attributes.add("cullingCamera", {
+    type: "entity",
+    title: "Culling Camera",
+});
 UranusEditorEntitiesPaint.attributes.add("useLOD", {
     type: "boolean",
     default: false,
@@ -2613,12 +2615,14 @@ UranusEditorEntitiesPaint.attributes.add("lodLevels", {
 UranusEditorEntitiesPaint.attributes.add("hideAfter", {
     type: "number",
     default: 0,
-    title: "Hide After",
+    title: "Far Clip",
     description: "Cull the instance after a distance from camera, this works even for instances that don't use LOD. Set to 0 to disable.",
 });
-UranusEditorEntitiesPaint.attributes.add("cullingCamera", {
-    type: "entity",
-    title: "Culling Camera",
+UranusEditorEntitiesPaint.attributes.add("perInstanceCull", {
+    type: "boolean",
+    default: true,
+    title: "Per Instance Cull",
+    description: "If enabled instances will be culled based only on the visibility of their current cell. This is a great way to increase performance when a huge number of instances is parsed.",
 });
 UranusEditorEntitiesPaint.attributes.add("isStatic", {
     type: "boolean",
@@ -3275,7 +3279,9 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                         var cellPos = this.getCellPos(instance.position);
                         var cellGuid = this.getCellGuid(cellPos);
                         if (!this.cells[cellGuid]) {
-                            this.cells[cellGuid] = new pc.BoundingBox(cellPos.clone(), this.vec1.copy(this.cellSize).scale(2).clone());
+                            var halfExtents = this.vec1.copy(this.cellSize).scale(2);
+                            this.cells[cellGuid] = new pc.BoundingBox(cellPos.clone(), halfExtents.clone());
+                            this.cells[cellGuid].sphere = new pc.BoundingSphere(cellPos.clone(), this.cellSize.x);
                         }
                         cellsList[i] = this.cells[cellGuid];
                     }
@@ -3321,6 +3327,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     var lodDistance = this.lodDistance;
     var lodEntities = this.lodEntities;
     var hideAfter = this.hideAfter;
+    var perInstanceCull = this.perInstanceCull;
     var self = this;
     var frustum = cullingEnabled ? this.cullingCamera.camera.frustum : null;
     var cameraPos = cullingEnabled ? this.cullingCamera.getPosition() : null;
@@ -3335,7 +3342,8 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     if (this.cells) {
         for (var cellGuid in this.cells) {
             var cell = this.cells[cellGuid];
-            cell.isVisible = cell.containsPoint(cameraPos);
+            //cell.isVisible = cell.containsPoint(cameraPos);
+            cell.isVisible = frustum.containsSphere(cell.sphere);
         }
     }
     this.spawnEntities.forEach(function (spawnEntity) {
@@ -3366,7 +3374,6 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                 // --- find visible instances
                 var visibleCount = 0;
                 var matrixIndex = 0;
-                var distanceFromCamera;
                 var visible = 0;
                 var cellsList = entities[0].model.meshInstances[meshInstanceIndex].cullingData
                     .cellsList;
@@ -3377,20 +3384,19 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                     var bounding = boundings[i];
                     // --- check first if the containing cell is visible
                     if (hideAfter > 0) {
-                        visible = cellsList[i].isVisible ? 1 : 0;
+                        visible = cellsList[i].isVisible;
                     }
                     else {
                         visible = 1;
                     }
                     // --- frustum culling
-                    if (visible > 0) {
+                    if (perInstanceCull === true && visible > 0) {
                         visible = cullingEnabled
                             ? lodIndex === 0
                                 ? frustum.containsSphere(bounding)
                                 : culledList[i]
                             : 0;
                     }
-                    distanceFromCamera = false;
                     // --- if LOD is used, we have a last step before rendering this instance: check if it's the active LOD
                     if (useLOD === true) {
                         if (lodIndex === 0) {
@@ -3398,11 +3404,10 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                         }
                         if (visible > 0) {
                             var instanceLodIndex = meshInstance.cullingData.lodIndex;
-                            distanceFromCamera =
-                                lodIndex === 0
-                                    ? self.distanceSq(cameraPos, bounding.center)
-                                    : entities[0].model.meshInstances[meshInstanceIndex]
-                                        .cullingData.distances[i];
+                            var distanceFromCamera = lodIndex === 0
+                                ? self.distanceSq(cameraPos, bounding.center)
+                                : entities[0].model.meshInstances[meshInstanceIndex]
+                                    .cullingData.distances[i];
                             // --- save check for later LOD levels
                             if (lodIndex === 0) {
                                 meshInstance.cullingData.distances[i] = distanceFromCamera;

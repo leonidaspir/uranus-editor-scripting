@@ -291,10 +291,6 @@ UranusEffectWater.prototype.updateWater = function () {
 };
 
 UranusEffectWater.prototype.updateUniforms = function () {
-  if (!this.autoUpdate) {
-    return false;
-  }
-
   this.material.setParameter("waveWidth", this.waveWidth);
   this.material.setParameter("waveFrequency", this.waveFrequency);
   this.material.setParameter("waveFalloff", this.waveFalloff);

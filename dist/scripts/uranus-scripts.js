@@ -2510,6 +2510,9 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
     }
 };
 // Pines with 0 hide after aren't showing up
+// HW kicking in requires reload
+// Non streaming approach -> erasing doesn't work
+// Option to disable per instance culling, e.g. for grass
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
     type: "boolean",
@@ -3848,9 +3851,6 @@ UranusEffectWater.prototype.updateWater = function () {
     this.camera.enabled = false;
 };
 UranusEffectWater.prototype.updateUniforms = function () {
-    if (!this.autoUpdate) {
-        return false;
-    }
     this.material.setParameter("waveWidth", this.waveWidth);
     this.material.setParameter("waveFrequency", this.waveFrequency);
     this.material.setParameter("waveFalloff", this.waveFalloff);

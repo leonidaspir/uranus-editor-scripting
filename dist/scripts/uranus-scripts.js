@@ -2511,6 +2511,7 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
 };
 // HW kicking in requires reload
 // Non streaming approach -> erasing doesn't work
+// Make editorAttr update logic work on runtime
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
     type: "boolean",
@@ -2663,7 +2664,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         this.lodLevels.z * this.lodLevels.z,
         this.lodLevels.w * this.lodLevels.w,
     ];
-    //this.densityDistance = this.densityDistance * this.densityDistance;
+    this.densityDistance = this.densityDistance * this.densityDistance;
     this.spawnEntities = [];
     this.instanceData = {
         name: undefined,
@@ -2674,7 +2675,6 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     this.hiddenCamera = this.cullingCamera.clone();
     if (this.hideAfter > 0) {
         this.hiddenCamera.camera.farClip = this.hideAfter;
-        this.cell = new pc.Vec3();
         this.cells = undefined;
     }
     // --- load first any streaming data available
@@ -2801,7 +2801,7 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
         ];
     }
     if (property === "densityReduce") {
-        //this.densityDistance = value * value;
+        this.densityDistance = value * value;
     }
 };
 UranusEditorEntitiesPaint.prototype.setBuildingState = function (btnBuild, dontTrigger) {
@@ -3297,8 +3297,9 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                     var bounding = new pc.BoundingSphere(this.vec1.clone(), meshInstance._aabb.halfExtents.length() * 2);
                     boundingsOriginal[i] = bounding;
                     // --- add instance to cell
-                    if (this.hideAfter > 0 && lodIndex === 0) {
-                        var cellPos = this.getCellPos(instance.position);
+                    if (lodIndex === 0) {
+                        var cellPos = new pc.Vec3();
+                        this.getCellPos(cellPos, instance.position);
                         var cellGuid = this.getCellGuid(cellPos);
                         if (!this.cells[cellGuid]) {
                             var halfExtents = this.vec1.copy(this.cellSize).scale(2);
@@ -3329,7 +3330,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                     distances: this.useLOD && lodIndex === 0 ? [] : undefined,
                     matrices: matrices.slice(0),
                     matricesList: matricesList,
-                    cellsList: this.hideAfter > 0 ? cellsList : undefined,
+                    cellsList: cellsList,
                 };
             }.bind(this));
         }.bind(this));
@@ -3361,6 +3362,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         this.hiddenCamera.setRotation(this.cullingCamera.getRotation());
         app.renderer.updateCameraFrustum(this.hiddenCamera.camera.camera);
         frustum = this.hiddenCamera.camera.frustum;
+        console.log(hideAfter);
     }
     // --- update visibility cells
     if (this.cells) {
@@ -3368,7 +3370,6 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
             var cell = this.cells[cellGuid];
             cell.isVisible = frustum.containsSphere(cell.sphere);
             cell.distanceFromCamera = self.distanceSq(cameraPos, cell.center);
-            cell.distanceFromCamera = cameraPos.distance(cell.center);
         }
     }
     this.spawnEntities.forEach(function (spawnEntity) {
@@ -3621,11 +3622,11 @@ UranusEditorEntitiesPaint.prototype.distanceSq = function (lhs, rhs) {
     var z = lhs.z - rhs.z;
     return x * x + y * y + z * z;
 };
-UranusEditorEntitiesPaint.prototype.getCellPos = function (pos) {
-    this.cell.x = Math.floor(pos.x / this.cellSize.x) * this.cellSize.x;
-    this.cell.y = Math.floor(pos.y / this.cellSize.y) * this.cellSize.y;
-    this.cell.z = Math.floor(pos.z / this.cellSize.z) * this.cellSize.z;
-    return this.cell;
+UranusEditorEntitiesPaint.prototype.getCellPos = function (cell, pos) {
+    cell.x = Math.floor(pos.x / this.cellSize.x) * this.cellSize.x;
+    cell.y = Math.floor(pos.y / this.cellSize.y) * this.cellSize.y;
+    cell.z = Math.floor(pos.z / this.cellSize.z) * this.cellSize.z;
+    return cell;
 };
 UranusEditorEntitiesPaint.prototype.getCellGuid = function (cell) {
     return cell.x.toFixed(3) + "_" + cell.y.toFixed(3) + "_" + cell.z.toFixed(3);

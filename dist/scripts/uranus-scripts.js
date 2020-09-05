@@ -2512,6 +2512,7 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
 // HW kicking in requires reload
 // Non streaming approach -> erasing doesn't work
 // Make editorAttr update logic work on runtime
+// ToDo implement WASM math: https://forum.playcanvas.com/t/solved-load-wasm-from-project-assets/14309/5?u=leonidas
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
     type: "boolean",
@@ -2685,6 +2686,13 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
             this.updateHardwareInstancing();
         }
     }.bind(this));
+    var myMath = this.app.assets.find("optimized.wasm");
+    var path = myMath.getFileUrl();
+    WebAssembly.instantiateStreaming(fetch(path), {}).then(function (result) {
+        var lib = result.instance.exports;
+        var test = lib.add(1, 2);
+        console.log("test", test);
+    });
 };
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
     if (this.hardwareInstancing) {

@@ -219,6 +219,16 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
       }
     }.bind(this)
   );
+
+  const myMath = this.app.assets.find("optimized.wasm");
+  const path = myMath.getFileUrl();
+
+  WebAssembly.instantiateStreaming(fetch(path), {}).then((result) => {
+    let lib = result.instance.exports;
+
+    var test = lib.add(1, 2);
+    console.log("test", test);
+  });
 };
 
 UranusEditorEntitiesPaint.prototype.update = function (dt) {

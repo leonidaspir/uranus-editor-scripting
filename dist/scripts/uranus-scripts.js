@@ -2663,7 +2663,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         this.lodLevels.z * this.lodLevels.z,
         this.lodLevels.w * this.lodLevels.w,
     ];
-    this.densityDistance = this.densityDistance * this.densityDistance;
+    this.densityDistanceSq = this.densityDistance * this.densityDistance;
     this.spawnEntities = [];
     this.instanceData = {
         name: undefined,
@@ -2684,14 +2684,16 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
             this.updateHardwareInstancing();
         }
     }.bind(this));
+    // fires for all attribute changes
+    this.on("attr", this.editorAttrChange, this);
 };
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
     if (this.hardwareInstancing) {
-        var p1 = performance.now();
+        // const p1 = performance.now();
         this.cullHardwareInstancing();
-        var p2 = performance.now();
-        var diff = p2 - p1;
-        console.log(diff.toFixed(2));
+        // const p2 = performance.now();
+        // const diff = p2 - p1;
+        // console.log(diff.toFixed(2));
     }
 };
 UranusEditorEntitiesPaint.prototype.editorInitialize = function () {
@@ -2774,18 +2776,20 @@ UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (element)
     containerEl.append(btnClearInstances.element);
 };
 UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value) {
-    if (this.building) {
-        this.setGizmoState(false);
-        this.setGizmoState(true);
+    if (Uranus.Editor.inEditor()) {
+        if (this.building) {
+            this.setGizmoState(false);
+            this.setGizmoState(true);
+        }
+        if (property === "removeComponents") {
+            this.prepareComponentsToClear(value);
+        }
     }
     if (property === "streamingFile") {
         this.streamingData = this.loadStreamingData();
     }
     if (property === "hardwareInstancing") {
         this.enableHardwareInstancing();
-    }
-    if (property === "removeComponents") {
-        this.prepareComponentsToClear(value);
     }
     if (this.cullingCamera && property === "hideAfter") {
         var hideAfter = value;
@@ -2804,7 +2808,7 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
         ];
     }
     if (property === "densityDistance") {
-        this.densityDistance = value * value;
+        this.densityDistanceSq = value * value;
     }
 };
 UranusEditorEntitiesPaint.prototype.setBuildingState = function (btnBuild, dontTrigger) {
@@ -3356,7 +3360,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     var hideAfter = this.hideAfter;
     var perInstanceCull = this.perInstanceCull;
     var densityReduce = this.densityReduce;
-    var densityDistance = this.densityDistance;
+    var densityDistance = this.densityDistanceSq;
     var self = this;
     var frustum = cullingEnabled ? this.cullingCamera.camera.frustum : null;
     var cameraPos = cullingEnabled ? this.cullingCamera.getPosition() : null;

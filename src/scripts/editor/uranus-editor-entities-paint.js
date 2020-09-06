@@ -186,7 +186,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     this.lodLevels.w * this.lodLevels.w,
   ];
 
-  this.densityDistance = this.densityDistance * this.densityDistance;
+  this.densityDistanceSq = this.densityDistance * this.densityDistance;
 
   this.spawnEntities = [];
 
@@ -216,6 +216,9 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
       }
     }.bind(this)
   );
+
+  // fires for all attribute changes
+  this.on("attr", this.editorAttrChange, this);
 };
 
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
@@ -351,9 +354,15 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
   property,
   value
 ) {
-  if (this.building) {
-    this.setGizmoState(false);
-    this.setGizmoState(true);
+  if (Uranus.Editor.inEditor()) {
+    if (this.building) {
+      this.setGizmoState(false);
+      this.setGizmoState(true);
+    }
+
+    if (property === "removeComponents") {
+      this.prepareComponentsToClear(value);
+    }
   }
 
   if (property === "streamingFile") {
@@ -362,10 +371,6 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
 
   if (property === "hardwareInstancing") {
     this.enableHardwareInstancing();
-  }
-
-  if (property === "removeComponents") {
-    this.prepareComponentsToClear(value);
   }
 
   if (this.cullingCamera && property === "hideAfter") {
@@ -389,7 +394,7 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
   }
 
   if (property === "densityDistance") {
-    this.densityDistance = value * value;
+    this.densityDistanceSq = value * value;
   }
 };
 
@@ -1136,7 +1141,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
   var hideAfter = this.hideAfter;
   var perInstanceCull = this.perInstanceCull;
   var densityReduce = this.densityReduce;
-  var densityDistance = this.densityDistance;
+  var densityDistance = this.densityDistanceSq;
   var self = this;
 
   var frustum = cullingEnabled ? this.cullingCamera.camera.frustum : null;

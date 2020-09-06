@@ -1,6 +1,5 @@
 // HW kicking in requires reload
 // Non streaming approach -> erasing doesn't work
-// Make editorAttr update logic work on runtime
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
@@ -1236,7 +1235,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
           var bounding = boundings[i];
 
           // --- check first if the containing cell is visible
-          if (hideAfter > 0) {
+          if (perInstanceCull === false && hideAfter > 0) {
             visible = cell.isVisible;
           } else {
             visible = 1;

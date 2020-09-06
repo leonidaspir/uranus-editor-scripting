@@ -2512,7 +2512,6 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
 // HW kicking in requires reload
 // Non streaming approach -> erasing doesn't work
 // Make editorAttr update logic work on runtime
-// ToDo implement WASM math: https://forum.playcanvas.com/t/solved-load-wasm-from-project-assets/14309/5?u=leonidas
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
     type: "boolean",
@@ -2652,7 +2651,6 @@ UranusEditorEntitiesPaint.attributes.add("isStatic", {
     title: "Is Static",
     description: "When hardware instancing is enabled, checking this flag will provide a performance increase since no translations will be updated on runtime.",
 });
-UranusEditorEntitiesPaint.float3dArrayZero = new Float32Array();
 UranusEditorEntitiesPaint.prototype.initialize = function () {
     this.vec = new pc.Vec3();
     this.vec1 = new pc.Vec3();
@@ -2686,17 +2684,14 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
             this.updateHardwareInstancing();
         }
     }.bind(this));
-    var myMath = this.app.assets.find("optimized.wasm");
-    var path = myMath.getFileUrl();
-    WebAssembly.instantiateStreaming(fetch(path), {}).then(function (result) {
-        var lib = result.instance.exports;
-        var test = lib.add(1, 2);
-        console.log("test", test);
-    });
 };
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
     if (this.hardwareInstancing) {
+        var p1 = performance.now();
         this.cullHardwareInstancing();
+        var p2 = performance.now();
+        var diff = p2 - p1;
+        console.log(diff.toFixed(2));
     }
 };
 UranusEditorEntitiesPaint.prototype.editorInitialize = function () {
@@ -3417,7 +3412,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                     var cell = cellsList[i];
                     activeDensity++;
                     if (cell.distanceFromCamera >= densityDistance &&
-                        activeDensity < densityReduce) {
+                        activeDensity <= densityReduce) {
                         continue;
                     }
                     activeDensity = 0;

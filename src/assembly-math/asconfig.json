@@ -14,6 +14,7 @@
     }
   },
   "options": {
-    "runtime": "none"
+    "runtime": "none",
+    "importMemory": false
   }
 }

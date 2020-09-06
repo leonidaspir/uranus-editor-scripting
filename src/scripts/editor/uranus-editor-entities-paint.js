@@ -1,7 +1,6 @@
 // HW kicking in requires reload
 // Non streaming approach -> erasing doesn't work
 // Make editorAttr update logic work on runtime
-// ToDo implement WASM math: https://forum.playcanvas.com/t/solved-load-wasm-from-project-assets/14309/5?u=leonidas
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
@@ -173,8 +172,6 @@ UranusEditorEntitiesPaint.attributes.add("isStatic", {
     "When hardware instancing is enabled, checking this flag will provide a performance increase since no translations will be updated on runtime.",
 });
 
-UranusEditorEntitiesPaint.float3dArrayZero = new Float32Array();
-
 UranusEditorEntitiesPaint.prototype.initialize = function () {
   this.vec = new pc.Vec3();
   this.vec1 = new pc.Vec3();
@@ -219,21 +216,18 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
       }
     }.bind(this)
   );
-
-  const myMath = this.app.assets.find("optimized.wasm");
-  const path = myMath.getFileUrl();
-
-  WebAssembly.instantiateStreaming(fetch(path), {}).then((result) => {
-    let lib = result.instance.exports;
-
-    var test = lib.add(1, 2);
-    console.log("test", test);
-  });
 };
 
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
   if (this.hardwareInstancing) {
+    const p1 = performance.now();
+
     this.cullHardwareInstancing();
+
+    const p2 = performance.now();
+    const diff = p2 - p1;
+
+    console.log(diff.toFixed(2));
   }
 };
 
@@ -1220,7 +1214,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
           if (
             cell.distanceFromCamera >= densityDistance &&
-            activeDensity < densityReduce
+            activeDensity <= densityReduce
           ) {
             continue;
           }

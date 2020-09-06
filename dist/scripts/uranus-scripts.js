@@ -2803,7 +2803,7 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
             value.w * value.w,
         ];
     }
-    if (property === "densityReduce") {
+    if (property === "densityDistance") {
         this.densityDistance = value * value;
     }
 };
@@ -3346,6 +3346,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         return;
     }
     var app = this.app;
+    var spawnEntities = this.spawnEntities;
     var isStatic = this.isStatic === false || this.streamingFile;
     var useLOD = this.useLOD;
     var vec = this.vec;
@@ -3374,15 +3375,18 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
             cell.distanceFromCamera = self.distanceSq(cameraPos, cell.center);
         }
     }
-    this.spawnEntities.forEach(function (spawnEntity) {
+    for (var a = 0; a < spawnEntities.length; a++) {
+        var spawnEntity = spawnEntities[a];
         if (useLOD === false && !spawnEntity.model)
             return true;
         if (useLOD === true && spawnEntity.children.length === 0)
             return true;
         var spawnScale = spawnEntity.getLocalScale();
         var entities = lodEntities[spawnEntity._guid];
-        entities.forEach(function (lodEntity, lodIndex) {
-            lodEntity.model.meshInstances.forEach(function (meshInstance, meshInstanceIndex) {
+        for (var lodIndex = 0; lodIndex < entities.length; lodIndex++) {
+            var lodEntity = entities[lodIndex];
+            for (var meshInstanceIndex = 0; meshInstanceIndex < lodEntity.model.meshInstances.length; meshInstanceIndex++) {
+                var meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
                 if (!meshInstance.cullingData)
                     return false;
                 // --- check if we will be updating translations
@@ -3498,9 +3502,9 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                 vertexBuffer.setData(subarray);
                 meshInstance.instancingData.count = visibleCount;
                 vertexBuffer.numVertices = visibleCount;
-            });
-        });
-    });
+            }
+        }
+    }
 };
 UranusEditorEntitiesPaint.prototype.setMat4Forward = function (mat4, forward, up) {
     var x = this.x;

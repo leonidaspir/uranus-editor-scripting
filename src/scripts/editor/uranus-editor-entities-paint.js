@@ -220,14 +220,14 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
 
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
   if (this.hardwareInstancing) {
-    const p1 = performance.now();
+    // const p1 = performance.now();
 
     this.cullHardwareInstancing();
 
-    const p2 = performance.now();
-    const diff = p2 - p1;
+    // const p2 = performance.now();
+    // const diff = p2 - p1;
 
-    console.log(diff.toFixed(2));
+    // console.log(diff.toFixed(2));
   }
 };
 
@@ -388,7 +388,7 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
     ];
   }
 
-  if (property === "densityReduce") {
+  if (property === "densityDistance") {
     this.densityDistance = value * value;
   }
 };
@@ -1126,6 +1126,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
   }
 
   var app = this.app;
+  var spawnEntities = this.spawnEntities;
   var isStatic = this.isStatic === false || this.streamingFile;
   var useLOD = this.useLOD;
   var vec = this.vec;
@@ -1160,20 +1161,26 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     }
   }
 
-  this.spawnEntities.forEach(function (spawnEntity) {
+  for (var a = 0; a < spawnEntities.length; a++) {
+    var spawnEntity = spawnEntities[a];
+
     if (useLOD === false && !spawnEntity.model) return true;
 
     if (useLOD === true && spawnEntity.children.length === 0) return true;
 
     var spawnScale = spawnEntity.getLocalScale();
-
     var entities = lodEntities[spawnEntity._guid];
 
-    entities.forEach(function (lodEntity, lodIndex) {
-      lodEntity.model.meshInstances.forEach(function (
-        meshInstance,
-        meshInstanceIndex
+    for (var lodIndex = 0; lodIndex < entities.length; lodIndex++) {
+      var lodEntity = entities[lodIndex];
+
+      for (
+        var meshInstanceIndex = 0;
+        meshInstanceIndex < lodEntity.model.meshInstances.length;
+        meshInstanceIndex++
       ) {
+        var meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
+
         if (!meshInstance.cullingData) return false;
 
         // --- check if we will be updating translations
@@ -1325,9 +1332,9 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         vertexBuffer.setData(subarray);
         meshInstance.instancingData.count = visibleCount;
         vertexBuffer.numVertices = visibleCount;
-      });
-    });
-  });
+      }
+    }
+  }
 };
 
 UranusEditorEntitiesPaint.prototype.setMat4Forward = function (

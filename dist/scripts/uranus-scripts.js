@@ -2652,7 +2652,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     this.vec = new pc.Vec3();
     this.vec1 = new pc.Vec3();
     this.vec2 = new pc.Vec3();
-    this.quat = new pc.Vec4();
+    this.quat = new pc.Quat();
     this.tempSphere = { center: null, radius: 0.5 };
     this.lodDistance = [
         this.lodLevels.x * this.lodLevels.x,
@@ -2687,6 +2687,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     this.on("state", function (enabled) {
         if (this.hardwareInstancing) {
             if (enabled) {
+                this.enableHardwareInstancing();
                 this.updateHardwareInstancing();
             }
             else {
@@ -3106,25 +3107,25 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
     var angles = this.vec1;
     if (this.alignThem) {
         // --- align in the direction of the hit normal
-        this.setMat4Forward(matrix, normal, pc.Vec3.UP);
-        this.quat.setFromMat4(matrix);
+        this.setMat4Forward(this.matrix, normal, pc.Vec3.UP);
+        this.quat.setFromMat4(this.matrix);
         angles
             .copy(this.quat.getEulerAngles())
             .sub(referenceEntity.getLocalEulerAngles());
     }
     else {
         angles.copy(referenceEntity.getLocalEulerAngles());
-        switch (this.rotateThem) {
-            case "x":
-                angles.x = pc.math.random(0, 360);
-                break;
-            case "y":
-                angles.y = pc.math.random(0, 360);
-                break;
-            case "z":
-                angles.z = pc.math.random(0, 360);
-                break;
-        }
+    }
+    switch (this.rotateThem) {
+        case "x":
+            angles.x = pc.math.random(0, 360);
+            break;
+        case "y":
+            angles.y = pc.math.random(0, 360);
+            break;
+        case "z":
+            angles.z = pc.math.random(0, 360);
+            break;
     }
     // --- position + offset
     var offset = this.vec2.copy(this.posOffset);

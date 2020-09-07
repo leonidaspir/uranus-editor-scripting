@@ -2510,7 +2510,6 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
     }
 };
 // HW kicking in requires reload
-// Non streaming approach -> erasing doesn't work
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
     type: "boolean",
@@ -2964,7 +2963,7 @@ UranusEditorEntitiesPaint.prototype.parseMousePoint = function (screenPosX, scre
 };
 UranusEditorEntitiesPaint.prototype.clearEntitiesInPoint = function (point) {
     var center = this.vec.copy(point);
-    if (!this.streamingData) {
+    if (this.streamingData.length === 0) {
         if (!this.parentItem) {
             return false;
         }

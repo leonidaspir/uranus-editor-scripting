@@ -2509,7 +2509,6 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
         this.editorInitialize(true);
     }
 };
-// HW kicking in requires reload
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
     type: "boolean",
@@ -2663,6 +2662,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     ];
     this.densityDistanceSq = this.densityDistance * this.densityDistance;
     this.spawnEntities = [];
+    this.meshInstances = undefined;
     this.instanceData = {
         name: undefined,
         position: new pc.Vec3(),
@@ -2682,8 +2682,18 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
             this.updateHardwareInstancing();
         }
     }.bind(this));
-    // fires for all attribute changes
+    // --- events
     this.on("attr", this.editorAttrChange, this);
+    this.on("state", function (enabled) {
+        if (this.hardwareInstancing) {
+            if (enabled) {
+                this.updateHardwareInstancing();
+            }
+            else {
+                this.clearInstances();
+            }
+        }
+    }, this);
 };
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
     if (this.hardwareInstancing) {
@@ -3174,6 +3184,16 @@ UranusEditorEntitiesPaint.prototype.clearEditorInstances = function () {
         this.updateHardwareInstancing();
     }
 };
+UranusEditorEntitiesPaint.prototype.clearInstances = function () {
+    this.meshInstances.forEach(function (meshInstance) {
+        if (meshInstance.instancingData &&
+            meshInstance.instancingData.vertexBuffer) {
+            meshInstance.instancingData.vertexBuffer.destroy();
+        }
+        meshInstance.setInstancing();
+        meshInstance.cullingData = undefined;
+    });
+};
 UranusEditorEntitiesPaint.prototype.enableHardwareInstancing = function () {
     this.spawnEntities =
         this.spawnEntity.children[0] instanceof pc.Entity
@@ -3225,6 +3245,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
     var matrix = new pc.Mat4();
     var spawnEntities = this.spawnEntities;
     this.cells = {};
+    this.meshInstances = [];
     var count = 0;
     spawnEntities.forEach(function (spawnEntity, spawnEntityIndex) {
         if (this.useLOD === false && !spawnEntity.model)
@@ -3337,6 +3358,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                     matricesList: matricesList,
                     cellsList: cellsList,
                 };
+                this.meshInstances.push(meshInstance);
             }.bind(this));
         }.bind(this));
     }.bind(this));

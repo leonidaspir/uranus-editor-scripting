@@ -1,4 +1,3 @@
-// HW kicking in requires reload
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
@@ -187,6 +186,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
   this.densityDistanceSq = this.densityDistance * this.densityDistance;
 
   this.spawnEntities = [];
+  this.meshInstances = undefined;
 
   this.instanceData = {
     name: undefined,
@@ -215,8 +215,22 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     }.bind(this)
   );
 
-  // fires for all attribute changes
+  // --- events
   this.on("attr", this.editorAttrChange, this);
+
+  this.on(
+    "state",
+    function (enabled) {
+      if (this.hardwareInstancing) {
+        if (enabled) {
+          this.updateHardwareInstancing();
+        } else {
+          this.clearInstances();
+        }
+      }
+    },
+    this
+  );
 };
 
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
@@ -871,6 +885,20 @@ UranusEditorEntitiesPaint.prototype.clearEditorInstances = function () {
   }
 };
 
+UranusEditorEntitiesPaint.prototype.clearInstances = function () {
+  this.meshInstances.forEach(function (meshInstance) {
+    if (
+      meshInstance.instancingData &&
+      meshInstance.instancingData.vertexBuffer
+    ) {
+      meshInstance.instancingData.vertexBuffer.destroy();
+    }
+
+    meshInstance.setInstancing();
+    meshInstance.cullingData = undefined;
+  });
+};
+
 UranusEditorEntitiesPaint.prototype.enableHardwareInstancing = function () {
   this.spawnEntities =
     this.spawnEntity.children[0] instanceof pc.Entity
@@ -941,6 +969,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
   var spawnEntities = this.spawnEntities;
 
   this.cells = {};
+  this.meshInstances = [];
 
   var count = 0;
 
@@ -1111,6 +1140,8 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                 matricesList: matricesList,
                 cellsList: cellsList,
               };
+
+              this.meshInstances.push(meshInstance);
             }.bind(this)
           );
         }.bind(this)

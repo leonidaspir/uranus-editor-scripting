@@ -2736,14 +2736,17 @@ UranusEditorEntitiesPaint.prototype.editorInitialize = function () {
 };
 UranusEditorEntitiesPaint.prototype.prepareComponentsToClear = function (value) {
     this.componentsToClear = [];
-    value
-        .replace(/\s+/, "")
-        .split(",")
-        .forEach(function (componentName) {
-        this.componentsToClear.push(componentName);
-    }.bind(this));
+    if (value && value.length > 0) {
+        value
+            .replace(/\s+/, "")
+            .split(",")
+            .forEach(function (componentName) {
+            this.componentsToClear.push(componentName);
+        }.bind(this));
+    }
     // --- if HW instancing is enabled we automatically add model in the list, if it's not
-    if (this.componentsToClear.indexOf("model") === -1) {
+    if (this.hardwareInstancing &&
+        this.componentsToClear.indexOf("model") === -1) {
         this.componentsToClear.push("model");
     }
 };

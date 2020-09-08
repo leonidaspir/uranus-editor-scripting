@@ -2509,6 +2509,7 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
         this.editorInitialize(true);
     }
 };
+// LOD spawn entity as a single one, not a list
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
     type: "boolean",
@@ -3291,7 +3292,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
         entities.forEach(function (lodEntity, lodIndex) {
             if (!lodEntity.model)
                 return true;
-            lodEntity.model.meshInstances.forEach(function (meshInstance) {
+            lodEntity.model.meshInstances.forEach(function (meshInstance, meshInstanceIndex) {
                 // --- calculate pivot offset
                 var offset = this.vec
                     .copy(meshInstance.aabb.center)
@@ -3310,7 +3311,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                     // --- check if we are interested in this mesh instance
                     if (instance.name !== spawnEntity.name)
                         continue;
-                    var scale = instance.scale;
+                    var scale = this.vec2.copy(instance.scale).scale(0.01);
                     // --- calculate pivot point position
                     this.vec1.copy(instance.position);
                     this.vec1.x += offset.x * scale.x;
@@ -3337,8 +3338,10 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                             this.cells[cellGuid].sphere = new pc.BoundingSphere(cellPos.clone(), this.cellSize.x * 1.5);
                         }
                         cellsList[i] = this.cells[cellGuid];
+                        if (meshInstanceIndex === 0) {
+                            count++;
+                        }
                     }
-                    count++;
                 }
                 // --- create the vertex buffer
                 if (meshInstance.instancingData &&

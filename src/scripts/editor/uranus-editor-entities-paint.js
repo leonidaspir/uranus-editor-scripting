@@ -1,3 +1,4 @@
+// LOD spawn entity as a single one, not a list
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
@@ -1036,7 +1037,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
           if (!lodEntity.model) return true;
 
           lodEntity.model.meshInstances.forEach(
-            function (meshInstance) {
+            function (meshInstance, meshInstanceIndex) {
               // --- calculate pivot offset
               var offset = this.vec
                 .copy(meshInstance.aabb.center)
@@ -1063,7 +1064,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                 // --- check if we are interested in this mesh instance
                 if (instance.name !== spawnEntity.name) continue;
 
-                var scale = instance.scale;
+                var scale = this.vec2.copy(instance.scale).scale(0.01);
 
                 // --- calculate pivot point position
                 this.vec1.copy(instance.position);
@@ -1106,9 +1107,11 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                     );
                   }
                   cellsList[i] = this.cells[cellGuid];
-                }
 
-                count++;
+                  if (meshInstanceIndex === 0) {
+                    count++;
+                  }
+                }
               }
 
               // --- create the vertex buffer

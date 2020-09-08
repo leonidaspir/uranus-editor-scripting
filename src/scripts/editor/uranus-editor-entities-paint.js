@@ -196,9 +196,11 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     scale: new pc.Vec3(),
   };
 
-  this.hiddenCamera = this.cullingCamera.clone();
+  this.hiddenCamera = this.cullingCamera
+    ? this.cullingCamera.clone()
+    : undefined;
 
-  if (this.hideAfter > 0) {
+  if (this.hideAfter > 0 && this.hiddenCamera) {
     this.hiddenCamera.camera.farClip = this.hideAfter;
     this.cells = undefined;
   }
@@ -1072,7 +1074,13 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                 this.vec1.y += offset.y * scale.y;
                 this.vec1.z += offset.z * scale.z;
 
-                matrix.setTRS(this.vec1, instance.rotation, scale);
+                // --- calculate angles
+                this.quat
+                  .copy(instance.rotation)
+                  .mul(meshInstance.node.getRotation());
+
+                // --- calculate instance matrix
+                matrix.setTRS(this.vec1, this.quat, scale);
 
                 // copy matrix elements into array of floats
                 for (var m = 0; m < 16; m++) {
@@ -1171,10 +1179,12 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
   var app = this.app;
   var spawnEntities = this.spawnEntities;
-  var isStatic = this.isStatic === false || this.streamingFile;
+  var isStatic = this.isStatic === true || this.streamingFile === undefined;
   var useLOD = this.useLOD;
   var vec = this.vec;
   var vec1 = this.vec1;
+  var vec2 = this.vec2;
+  var quat = this.quat;
   var lodDistance = this.lodDistance;
   var lodEntities = this.lodEntities;
   var hideAfter = this.hideAfter;
@@ -1271,7 +1281,6 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
           }
           activeDensity = 0;
 
-          var instance = instances[i];
           var bounding = boundings[i];
 
           // --- check first if the containing cell is visible
@@ -1339,7 +1348,9 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
             // --- check if we will be updating translations
             if (isStatic === false) {
-              var scale = instance.getLocalScale();
+              var instance = instances[i];
+
+              var scale = vec2.copy(instance.getLocalScale()).scale(0.01);
 
               // --- calculate pivot point position
               vec1.copy(instance.getPosition());
@@ -1347,7 +1358,13 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
               vec1.y += offset.y * scale.y;
               vec1.z += offset.z * scale.z;
 
-              matrix.setTRS(vec1, instance.getRotation(), scale);
+              // --- calculate angles
+              quat
+                .copy(instance.getRotation())
+                .mul(meshInstance.node.getRotation());
+
+              // --- calculate instance matrix
+              matrix.setTRS(vec1, quat, scale);
             }
 
             for (var m = 0; m < 16; m++) {

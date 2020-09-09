@@ -3290,10 +3290,10 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
             });
             return true;
         }
-        var spawnScale = spawnEntity.getLocalScale();
         entities.forEach(function (lodEntity, lodIndex) {
             if (!lodEntity.model)
                 return true;
+            var spawnScale = lodEntity.getLocalScale();
             lodEntity.model.meshInstances.forEach(function (meshInstance, meshInstanceIndex) {
                 // --- calculate pivot offset
                 var offset = this.vec
@@ -3313,7 +3313,10 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
                     // --- check if we are interested in this mesh instance
                     if (instance.name !== spawnEntity.name)
                         continue;
-                    var scale = this.vec2.copy(instance.scale).scale(0.01);
+                    var scale = this.vec2
+                        .copy(instance.scale)
+                        .mul(spawnScale)
+                        .scale(0.01);
                     // --- calculate pivot point position
                     this.vec1.copy(instance.position);
                     this.vec1.x += offset.x * scale.x;
@@ -3421,10 +3424,10 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
             return true;
         if (useLOD === true && spawnEntity.children.length === 0)
             return true;
-        var spawnScale = spawnEntity.getLocalScale();
         var entities = lodEntities[spawnEntity._guid];
         for (var lodIndex = 0; lodIndex < entities.length; lodIndex++) {
             var lodEntity = entities[lodIndex];
+            var spawnScale = lodEntity.getLocalScale();
             for (var meshInstanceIndex = 0; meshInstanceIndex < lodEntity.model.meshInstances.length; meshInstanceIndex++) {
                 var meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
                 if (!meshInstance.cullingData)
@@ -3514,7 +3517,10 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                         // --- check if we will be updating translations
                         if (isStatic === false) {
                             var instance = instances[i];
-                            var scale = vec2.copy(instance.getLocalScale()).scale(0.01);
+                            var scale = vec2
+                                .copy(instance.getLocalScale())
+                                .mul(spawnScale)
+                                .scale(0.01);
                             // --- calculate pivot point position
                             vec1.copy(instance.getPosition());
                             vec1.x += offset.x * scale.x;

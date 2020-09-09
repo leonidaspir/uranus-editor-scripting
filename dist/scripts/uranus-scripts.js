@@ -3422,17 +3422,19 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     for (var a = 0; a < spawnEntities.length; a++) {
         var spawnEntity = spawnEntities[a];
         if (useLOD === false && !spawnEntity.model)
-            return true;
+            continue;
         if (useLOD === true && spawnEntity.children.length === 0)
-            return true;
+            continue;
         var entities = lodEntities[spawnEntity._guid];
+        if (!entities)
+            continue;
         for (var lodIndex = 0; lodIndex < entities.length; lodIndex++) {
             var lodEntity = entities[lodIndex];
             var spawnScale = lodEntity.getLocalScale();
             for (var meshInstanceIndex = 0; meshInstanceIndex < lodEntity.model.meshInstances.length; meshInstanceIndex++) {
                 var meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
                 if (!meshInstance.cullingData)
-                    return false;
+                    continue;
                 // --- check if we will be updating translations
                 if (isStatic === false) {
                     // --- calculate pivot offset
@@ -3586,6 +3588,9 @@ UranusEditorEntitiesPaint.prototype.setMat4Forward = function (mat4, forward, up
 UranusEditorEntitiesPaint.prototype.isLodEntity = function (entity) {
     if (Uranus.Editor.inEditor()) {
         var item = editor.call("entities:get", entity._guid);
+        if (!item) {
+            return false;
+        }
         return item.get("tags").indexOf("uranus-lod-entity") > -1;
     }
     else {

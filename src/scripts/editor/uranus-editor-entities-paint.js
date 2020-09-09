@@ -138,8 +138,8 @@ UranusEditorEntitiesPaint.attributes.add("useLOD", {
 });
 
 UranusEditorEntitiesPaint.attributes.add("lodLevels", {
-  type: "vec4",
-  default: [10, 30, 50, 70],
+  type: "vec3",
+  default: [30, 50, 70],
   title: "LOD Levels",
 });
 
@@ -177,11 +177,11 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
   this.quat = new pc.Quat();
 
   this.tempSphere = { center: null, radius: 0.5 };
+
   this.lodDistance = [
     this.lodLevels.x * this.lodLevels.x,
     this.lodLevels.y * this.lodLevels.y,
     this.lodLevels.z * this.lodLevels.z,
-    this.lodLevels.w * this.lodLevels.w,
   ];
 
   this.densityDistanceSq = this.densityDistance * this.densityDistance;
@@ -411,7 +411,6 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
       value.x * value.x,
       value.y * value.y,
       value.z * value.z,
-      value.w * value.w,
     ];
   }
 
@@ -896,6 +895,10 @@ UranusEditorEntitiesPaint.prototype.clearEditorInstances = function () {
 };
 
 UranusEditorEntitiesPaint.prototype.clearInstances = function () {
+  if (!this.meshInstances) {
+    return;
+  }
+
   this.meshInstances.forEach(function (meshInstance) {
     if (
       meshInstance.instancingData &&
@@ -1200,7 +1203,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
   var cameraPos = cullingEnabled ? this.cullingCamera.getPosition() : null;
 
   // --- use custom culling, if required
-  if (hideAfter > 0) {
+  if (this.hiddenCamera && hideAfter > 0) {
     this.hiddenCamera.setPosition(cameraPos);
     this.hiddenCamera.setRotation(this.cullingCamera.getRotation());
 
@@ -1326,16 +1329,16 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
               var activeLodIndex = 0;
 
               if (
-                distanceFromCamera >= lodDistance[1] &&
-                distanceFromCamera < lodDistance[2]
+                distanceFromCamera >= lodDistance[0] &&
+                distanceFromCamera < lodDistance[1]
               ) {
                 activeLodIndex = 1;
               } else if (
-                distanceFromCamera >= lodDistance[2] &&
-                distanceFromCamera < lodDistance[3]
+                distanceFromCamera >= lodDistance[1] &&
+                distanceFromCamera < lodDistance[2]
               ) {
                 activeLodIndex = 2;
-              } else if (distanceFromCamera >= lodDistance[3]) {
+              } else if (distanceFromCamera >= lodDistance[2]) {
                 activeLodIndex = 3;
               }
 

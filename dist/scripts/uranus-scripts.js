@@ -2624,8 +2624,8 @@ UranusEditorEntitiesPaint.attributes.add("useLOD", {
     description: "A LOD system that works only when HW instancing is enabled. All LOD levels should be added as a first level entity to the spawn instance, with a model component and the 'uranus-lod-entity' tag.",
 });
 UranusEditorEntitiesPaint.attributes.add("lodLevels", {
-    type: "vec4",
-    default: [10, 30, 50, 70],
+    type: "vec3",
+    default: [30, 50, 70],
     title: "LOD Levels",
 });
 UranusEditorEntitiesPaint.attributes.add("densityReduce", {
@@ -2659,7 +2659,6 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         this.lodLevels.x * this.lodLevels.x,
         this.lodLevels.y * this.lodLevels.y,
         this.lodLevels.z * this.lodLevels.z,
-        this.lodLevels.w * this.lodLevels.w,
     ];
     this.densityDistanceSq = this.densityDistance * this.densityDistance;
     this.spawnEntities = [];
@@ -2819,7 +2818,6 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
             value.x * value.x,
             value.y * value.y,
             value.z * value.z,
-            value.w * value.w,
         ];
     }
     if (property === "densityDistance") {
@@ -3192,6 +3190,9 @@ UranusEditorEntitiesPaint.prototype.clearEditorInstances = function () {
     }
 };
 UranusEditorEntitiesPaint.prototype.clearInstances = function () {
+    if (!this.meshInstances) {
+        return;
+    }
     this.meshInstances.forEach(function (meshInstance) {
         if (meshInstance.instancingData &&
             meshInstance.instancingData.vertexBuffer) {
@@ -3404,7 +3405,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     var frustum = cullingEnabled ? this.cullingCamera.camera.frustum : null;
     var cameraPos = cullingEnabled ? this.cullingCamera.getPosition() : null;
     // --- use custom culling, if required
-    if (hideAfter > 0) {
+    if (this.hiddenCamera && hideAfter > 0) {
         this.hiddenCamera.setPosition(cameraPos);
         this.hiddenCamera.setRotation(this.cullingCamera.getRotation());
         app.renderer.updateCameraFrustum(this.hiddenCamera.camera.camera);
@@ -3495,15 +3496,15 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                                 meshInstance.cullingData.distances[i] = distanceFromCamera;
                             }
                             var activeLodIndex = 0;
-                            if (distanceFromCamera >= lodDistance[1] &&
-                                distanceFromCamera < lodDistance[2]) {
+                            if (distanceFromCamera >= lodDistance[0] &&
+                                distanceFromCamera < lodDistance[1]) {
                                 activeLodIndex = 1;
                             }
-                            else if (distanceFromCamera >= lodDistance[2] &&
-                                distanceFromCamera < lodDistance[3]) {
+                            else if (distanceFromCamera >= lodDistance[1] &&
+                                distanceFromCamera < lodDistance[2]) {
                                 activeLodIndex = 2;
                             }
-                            else if (distanceFromCamera >= lodDistance[3]) {
+                            else if (distanceFromCamera >= lodDistance[2]) {
                                 activeLodIndex = 3;
                             }
                             if (instanceLodIndex !== activeLodIndex) {

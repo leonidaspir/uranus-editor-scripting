@@ -2510,6 +2510,7 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
     }
 };
 // LOD spawn entity as a single one, not a list
+// https://stackoverflow.com/questions/19553448/typedarray-set-vs-unrolled-loop-javascript
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
     type: "boolean",

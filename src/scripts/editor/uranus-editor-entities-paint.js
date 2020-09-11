@@ -171,11 +171,15 @@ UranusEditorEntitiesPaint.attributes.add("isStatic", {
     "When hardware instancing is enabled, checking this flag will provide a performance increase since no translations will be updated on runtime.",
 });
 
+UranusEditorEntitiesPaint.zeroBuffer = new Float32Array();
+
 UranusEditorEntitiesPaint.prototype.initialize = function () {
   this.vec = new pc.Vec3();
   this.vec1 = new pc.Vec3();
   this.vec2 = new pc.Vec3();
+  this.vec3 = new pc.Vec3();
   this.quat = new pc.Quat();
+  this.matrix = new pc.Mat4();
 
   this.tempSphere = { center: null, radius: 0.5 };
 
@@ -212,9 +216,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
       this.streamingData = streamingData;
 
       if (this.hardwareInstancing) {
-        this.enableHardwareInstancing();
-
-        this.updateHardwareInstancing();
+        this.prepareHardwareInstancing();
       }
     }.bind(this)
   );
@@ -227,9 +229,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     function (enabled) {
       if (this.hardwareInstancing) {
         if (enabled) {
-          this.enableHardwareInstancing();
-
-          this.updateHardwareInstancing();
+          this.prepareHardwareInstancing();
         } else {
           this.clearInstances();
         }
@@ -242,12 +242,9 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
   if (this.hardwareInstancing) {
     // const p1 = performance.now();
-
-    this.cullHardwareInstancing();
-
+    // this.cullHardwareInstancing();
     // const p2 = performance.now();
     // const diff = p2 - p1;
-
     // console.log(diff.toFixed(2));
   }
 };
@@ -261,8 +258,6 @@ UranusEditorEntitiesPaint.prototype.editorInitialize = function () {
   this.currentPosition = new pc.Vec3();
   this.randomPosition = new pc.Vec3();
   this.lastPosition = new pc.Vec3();
-
-  this.matrix = new pc.Mat4();
 
   this.x = new pc.Vec3();
   this.y = new pc.Vec3();
@@ -393,7 +388,7 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
   }
 
   if (property === "hardwareInstancing") {
-    this.enableHardwareInstancing();
+    this.prepareHardwareInstancing();
   }
 
   if (this.cullingCamera && property === "hideAfter") {
@@ -403,7 +398,7 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
       hideAfter > 0 ? hideAfter : this.cullingCamera.camera.farClip;
 
     if (this.hardwareInstancing) {
-      this.updateHardwareInstancing();
+      this.prepareHardwareInstancing();
     }
   }
 
@@ -537,14 +532,14 @@ UranusEditorEntitiesPaint.prototype.setInputState = function (state) {
 UranusEditorEntitiesPaint.prototype.onHistoryUndo = function () {
   // --- update renderer if required
   if (this.hardwareInstancing) {
-    this.updateHardwareInstancing();
+    this.prepareHardwareInstancing();
   }
 };
 
 UranusEditorEntitiesPaint.prototype.onHistoryRedo = function () {
   // --- update renderer if required
   if (this.hardwareInstancing) {
-    this.updateHardwareInstancing();
+    this.prepareHardwareInstancing();
   }
 };
 
@@ -651,7 +646,7 @@ UranusEditorEntitiesPaint.prototype.clearEntitiesInPoint = function (point) {
 
   // --- update renderer if required
   if (this.hardwareInstancing) {
-    this.updateHardwareInstancing();
+    this.prepareHardwareInstancing();
   }
 };
 
@@ -721,7 +716,7 @@ UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (
 
   // --- update renderer if required
   if (this.hardwareInstancing) {
-    this.updateHardwareInstancing();
+    this.prepareHardwareInstancing();
   }
 };
 
@@ -776,10 +771,7 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
       item.get("children").forEach(function (child) {
         var removeEntity = editor.call("entities:get", child);
 
-        if (
-          !removeEntity ||
-          removeEntity.get("tags").indexOf("uranus-lod-entity") === -1
-        )
+        if (!removeEntity || removeEntity.get("name").indexOf("_LOD") === -1)
           return;
 
         editor.call("entities:removeEntity", removeEntity);
@@ -891,7 +883,7 @@ UranusEditorEntitiesPaint.prototype.clearEditorInstances = function () {
 
   // --- update renderer if required
   if (this.hardwareInstancing) {
-    this.updateHardwareInstancing();
+    this.prepareHardwareInstancing();
   }
 };
 
@@ -900,6 +892,7 @@ UranusEditorEntitiesPaint.prototype.clearInstances = function () {
     return;
   }
 
+  // ToDo upgrade to new design`
   this.meshInstances.forEach(function (meshInstance) {
     if (
       meshInstance.instancingData &&
@@ -913,7 +906,331 @@ UranusEditorEntitiesPaint.prototype.clearInstances = function () {
   });
 };
 
-UranusEditorEntitiesPaint.prototype.enableHardwareInstancing = function () {
+UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
+  // --- ToDo clean up previous payloads
+
+  // --- get a list of the spawn entities to be instanced
+  this.spawnEntities =
+    this.spawnEntity.children[0] instanceof pc.Entity
+      ? this.spawnEntity.children
+      : [this.spawnEntity];
+
+  // --- references for faster access
+  var spawnEntities = this.spawnEntities;
+  var vec = this.vec;
+  var vec1 = this.vec1;
+  var vec2 = this.vec2;
+  var vec3 = this.vec3;
+  var quat = this.quat;
+  var matrix = this.matrix;
+
+  // --- prepare the instancing payloads/cells
+  this.payloads = [[], [], [], []];
+  this.cells = {};
+  var i, j;
+
+  for (
+    var spawnIndex = 0;
+    spawnIndex < this.spawnEntities.length;
+    spawnIndex++
+  ) {
+    var spawnEntity = this.spawnEntities[spawnIndex];
+
+    // --- get the instances / translation data
+    var instances = this.filterInstances(spawnEntity, spawnIndex);
+
+    // --- gather LOD entities or use the spawn entity for finding the base entity
+    var lodEntities = [];
+    if (spawnEntity.model) {
+      lodEntities.push(spawnEntity);
+    } else {
+      for (i = 0; i < spawnEntity.children.length; i++) {
+        var child = spawnEntity.children[i];
+
+        if (!child.model) continue;
+
+        // --- search for a LOD entity
+        for (j = 0; j <= 3; j++) {
+          if (child.name.indexOf("_LOD" + j) > -1) {
+            lodEntities[j] = child;
+            break;
+          }
+        }
+      }
+    }
+
+    // --- main instancing prepare loop to find all the relevant mesh instances
+    for (var lodIndex = 0; lodIndex < lodEntities.length; lodIndex++) {
+      var lodEntity = lodEntities[lodIndex];
+
+      // --- get per payload references
+      var spawnPos = lodEntity.getPosition();
+      var spawnScale = lodEntity.getLocalScale();
+
+      for (
+        var meshInstanceIndex = 0;
+        meshInstanceIndex < lodEntity.model.meshInstances.length;
+        meshInstanceIndex++
+      ) {
+        var meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
+        meshInstance.visible = false;
+
+        var meshRotation = meshInstance.node.getRotation();
+        var meshSphereRadius = meshInstance.aabb.halfExtents.length() * 2;
+
+        // --- calculate pivot offset
+        var offset = this.getMeshInstancePosOffset(
+          vec3,
+          meshInstance.aabb.center,
+          spawnPos,
+          spawnScale
+        );
+
+        // --- prepare a payload
+        var payload = {
+          baseEntity: lodEntity,
+          instances: instances,
+          meshInstance: new pc.MeshInstance(
+            meshInstance.node,
+            meshInstance.mesh,
+            meshInstance.material
+          ),
+          meshRotation: meshRotation,
+          matrices: [],
+          matricesPerCell: {},
+          totalBuffer: undefined,
+          totalMatrices: undefined,
+          vertexBuffer: undefined,
+        };
+
+        for (i = 0; i < instances.length; i++) {
+          var instance = this.getInstanceData(instances[i], spawnEntities);
+
+          // --- check if we are interested in this mesh instance
+          if (instance.name !== spawnEntity.name) continue;
+
+          var scale = this.getInstanceScale(vec2, instance, spawnScale);
+          var position = this.getInstancePosition(
+            vec1,
+            instance,
+            offset,
+            scale
+          );
+
+          var matrix = this.getInstanceMatrix(
+            new pc.Mat4(),
+            quat,
+            instance,
+            position,
+            meshRotation,
+            scale
+          );
+
+          payload.matrices.push(matrix);
+
+          // --- create a bounding box for this instance
+          matrix.sphere = new pc.BoundingSphere(
+            position.clone(),
+            meshSphereRadius
+          );
+
+          // --- add instance to total matrices list
+          var cellPos = this.getCellPos(vec, instance.position);
+          var cell = this.getVisibilityCell(cellPos);
+
+          matrix.cell = cell;
+
+          // --- add instance to per cell matrices list
+          if (!payload.matricesPerCell[cell.guid]) {
+            payload.matricesPerCell[cell.guid] = [];
+          }
+
+          payload.matricesPerCell[cell.guid].push(matrix);
+        }
+
+        // --- add payload to renderable list
+        if (payload.matrices.length > 0) {
+          this.payloads[lodIndex].push(payload);
+        }
+      }
+    }
+  }
+
+  // --- fill up buffers
+  for (var lodIndex = 0; lodIndex < this.payloads.length; lodIndex++) {
+    var lodPayloads = this.payloads[lodIndex];
+
+    for (i = 0; i < lodPayloads.length; i++) {
+      var payload = lodPayloads[i];
+
+      // --- prepare the instances buffers
+      payload.totalBuffer = new ArrayBuffer(payload.matrices.length * 16 * 4);
+      payload.totalMatrices = new Float32Array(
+        payload.totalBuffer,
+        0,
+        payload.matrices.length * 16
+      );
+      var totalMatrices = payload.totalMatrices;
+      var totalMatrixIndex = 0;
+
+      var startCellIndex = 0;
+      var endCellIndex = 0;
+
+      // --- sort matrices per visibility cell
+      for (var cellGuid in payload.matricesPerCell) {
+        var matricesPerCell = payload.matricesPerCell[cellGuid];
+
+        // --- populate matrices buffers
+        for (var j = 0; j < matricesPerCell.length; j++) {
+          for (var m = 0; m < 16; m++) {
+            endCellIndex++;
+
+            totalMatrices[totalMatrixIndex] = matricesPerCell[j].data[m];
+            totalMatrixIndex++;
+          }
+        }
+
+        var cellMatrices = new Float32Array(
+          payload.totalBuffer,
+          startCellIndex * 4,
+          endCellIndex - startCellIndex
+        );
+
+        startCellIndex = endCellIndex;
+
+        // --- replaces matrices references with the single cell typed array
+        payload.matricesPerCell[cellGuid] = cellMatrices;
+      }
+
+      // --- create payload vertex buffer
+      var bufferArray = this.cullingCamera
+        ? UranusEditorEntitiesPaint.zeroBuffer
+        : payload.totalMatrices;
+
+      // TEST set typed array
+      // var endCellIndex = 0;
+
+      // for (var cellGuid in payload.matricesPerCell) {
+      //   var matricesPerCell = payload.matricesPerCell[cellGuid];
+
+      //   bufferArray.set(matricesPerCell, endCellIndex);
+      //   endCellIndex = matricesPerCell.length;
+      // }
+      // bufferArray = bufferArray.subarray(0, endCellIndex);
+
+      payload.vertexBuffer = new pc.VertexBuffer(
+        this.app.graphicsDevice,
+        pc.VertexFormat.defaultInstancingFormat,
+        this.cullingCamera ? 0 : bufferArray.length / 16,
+        pc.BUFFER_STATIC,
+        this.cullingCamera ? UranusEditorEntitiesPaint.zeroBuffer : bufferArray
+      );
+
+      var meshInstance = payload.meshInstance;
+
+      // --- enable instancing on the mesh instance
+      meshInstance.material.onUpdateShader = function (options) {
+        options.useInstancing = true;
+        return options;
+      };
+      meshInstance.material.update();
+
+      // --- add mesh instance to render lists
+      var modelComponent = payload.baseEntity.model;
+      meshInstance.castShadow = modelComponent.castShadows;
+      meshInstance.cull = false;
+
+      for (let j = 0; j < modelComponent.layers.length; j++) {
+        var layerID = modelComponent.layers[j];
+        var layer = this.app.scene.layers.getLayerById(layerID);
+
+        if (layer) {
+          layer.addMeshInstances([meshInstance]);
+        }
+      }
+
+      meshInstance.setInstancing(payload.vertexBuffer);
+    }
+  }
+};
+
+UranusEditorEntitiesPaint.prototype.getMeshInstancePosOffset = function (
+  offset,
+  center,
+  spawnPos,
+  spawnScale
+) {
+  offset.copy(center).sub(spawnPos);
+
+  offset.x /= spawnScale.x;
+  offset.y /= spawnScale.y;
+  offset.z /= spawnScale.z;
+
+  return offset;
+};
+
+UranusEditorEntitiesPaint.prototype.getInstancePosition = function (
+  position,
+  instance,
+  offset,
+  scale
+) {
+  // --- calculate pivot point position
+  position.copy(instance.position);
+  position.x += offset.x * scale.x;
+  position.y += offset.y * scale.y;
+  position.z += offset.z * scale.z;
+
+  return position;
+};
+
+UranusEditorEntitiesPaint.prototype.getInstanceScale = function (
+  scale,
+  instance,
+  spawnScale
+) {
+  scale.copy(instance.scale).mul(spawnScale).scale(0.01);
+
+  return scale;
+};
+
+UranusEditorEntitiesPaint.prototype.getInstanceMatrix = function (
+  matrix,
+  quat,
+  instance,
+  position,
+  rotation,
+  scale
+) {
+  // --- calculate angles
+  quat.copy(instance.rotation).mul(rotation);
+
+  // --- calculate instance matrix
+  return matrix.setTRS(position, quat, scale);
+};
+
+UranusEditorEntitiesPaint.prototype.getVisibilityCell = function (cellPos) {
+  var cellGuid = this.getCellGuid(cellPos);
+  var cell = this.cells[cellGuid];
+
+  // --- if cell doesn't exist, create it once
+  if (!cell) {
+    var halfExtents = new pc.Vec3().copy(this.cellSize).scale(2);
+    this.cells[cellGuid] = new pc.BoundingBox(
+      cellPos.clone(),
+      halfExtents.clone()
+    );
+    cell = this.cells[cellGuid];
+
+    cell.guid = cellGuid;
+    cell.sphere = new pc.BoundingSphere(cellPos.clone(), this.cellSize.x * 1.5);
+    cell.isVisible = 0;
+  }
+
+  return cell;
+};
+
+UranusEditorEntitiesPaint.prototype.enableHardwareInstancing1 = function () {
   this.spawnEntities =
     this.spawnEntity.children[0] instanceof pc.Entity
       ? this.spawnEntity.children
@@ -977,7 +1294,7 @@ UranusEditorEntitiesPaint.prototype.enableHardwareInstancing = function () {
   );
 };
 
-UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
+UranusEditorEntitiesPaint.prototype.updateHardwareInstancing1 = function () {
   var matrix = new pc.Mat4();
 
   var spawnEntities = this.spawnEntities;
@@ -1177,7 +1494,7 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing = function () {
   console.log(this.entity.name, "instances", count);
 };
 
-UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
+UranusEditorEntitiesPaint.prototype.cullHardwareInstancing1 = function () {
   var cullingEnabled = this.cullingCamera && this.cullingCamera.camera;
 
   if (!cullingEnabled && !this.useLOD && this.isStatic === true) {
@@ -1215,7 +1532,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
   // --- update visibility cells
   if (this.cells) {
-    for (const cellGuid in this.cells) {
+    for (var cellGuid in this.cells) {
       var cell = this.cells[cellGuid];
       cell.isVisible = frustum.containsSphere(cell.sphere);
       cell.distanceFromCamera = self.distanceSq(cameraPos, cell.center);
@@ -1443,20 +1760,6 @@ UranusEditorEntitiesPaint.prototype.setMat4Forward = function (
   r[15] = 1;
 
   return mat4;
-};
-
-UranusEditorEntitiesPaint.prototype.isLodEntity = function (entity) {
-  if (Uranus.Editor.inEditor()) {
-    var item = editor.call("entities:get", entity._guid);
-
-    if (!item) {
-      return false;
-    }
-
-    return item.get("tags").indexOf("uranus-lod-entity") > -1;
-  } else {
-    return entity.tags.has("uranus-lod-entity");
-  }
 };
 
 UranusEditorEntitiesPaint.prototype.roundNumber = function (x, base) {

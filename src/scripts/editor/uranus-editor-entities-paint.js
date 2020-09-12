@@ -241,8 +241,8 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
 
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
   if (this.hardwareInstancing) {
-    // const p1 = performance.now();
-    // this.cullHardwareInstancing();
+    //const p1 = performance.now();
+    this.cullHardwareInstancing();
     // const p2 = performance.now();
     // const diff = p2 - p1;
     // console.log(diff.toFixed(2));
@@ -1039,6 +1039,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
           var cell = this.getVisibilityCell(cellPos);
 
           matrix.cell = cell;
+          matrix.instance = instance;
 
           // --- add instance to per cell matrices list
           if (!payload.matricesPerCell[cell.guid]) {
@@ -1065,6 +1066,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
 
       // --- prepare the instances buffers
       payload.totalBuffer = new ArrayBuffer(payload.matrices.length * 16 * 4);
+      payload.culledMatrices = new Float32Array(payload.matrices.length * 16);
       payload.totalMatrices = new Float32Array(
         payload.totalBuffer,
         0,
@@ -1107,17 +1109,6 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
         ? UranusEditorEntitiesPaint.zeroBuffer
         : payload.totalMatrices;
 
-      // TEST set typed array
-      // var endCellIndex = 0;
-
-      // for (var cellGuid in payload.matricesPerCell) {
-      //   var matricesPerCell = payload.matricesPerCell[cellGuid];
-
-      //   bufferArray.set(matricesPerCell, endCellIndex);
-      //   endCellIndex = matricesPerCell.length;
-      // }
-      // bufferArray = bufferArray.subarray(0, endCellIndex);
-
       payload.vertexBuffer = new pc.VertexBuffer(
         this.app.graphicsDevice,
         pc.VertexFormat.defaultInstancingFormat,
@@ -1152,6 +1143,9 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
       meshInstance.setInstancing(payload.vertexBuffer);
     }
   }
+
+  console.log(this.payloads);
+  // console.log(this.entity.name, "instances", count);
 };
 
 UranusEditorEntitiesPaint.prototype.getMeshInstancePosOffset = function (
@@ -1225,9 +1219,165 @@ UranusEditorEntitiesPaint.prototype.getVisibilityCell = function (cellPos) {
     cell.guid = cellGuid;
     cell.sphere = new pc.BoundingSphere(cellPos.clone(), this.cellSize.x * 1.5);
     cell.isVisible = 0;
+    cell.distanceFromCamera = 0;
+    cell.activeLOD = 0;
   }
 
   return cell;
+};
+
+UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
+  var cullingCamera = this.cullingCamera;
+  var payloads = this.payloads;
+
+  if (!cullingCamera || !payloads || payloads.length === 0) {
+    return;
+  }
+
+  // --- grab references for faster access
+  var app = this.app;
+  var cells = this.cells;
+  var useLOD = this.useLOD;
+  var hideAfter = this.hideAfter;
+  var frustum;
+  var cameraPos = cullingCamera.getPosition();
+  var hiddenCamera = this.hiddenCamera;
+  var perInstanceCull = this.perInstanceCull;
+  var lodDistance = this.lodDistance;
+  var i, j, lodIndex;
+
+  // --- use custom culling, if required
+  if (hiddenCamera && hideAfter > 0) {
+    hiddenCamera.setPosition(cameraPos);
+    hiddenCamera.setRotation(cullingCamera.getRotation());
+
+    app.renderer.updateCameraFrustum(hiddenCamera.camera.camera);
+
+    frustum = hiddenCamera.camera.frustum;
+  } else {
+    frustum = cullingCamera.camera.frustum;
+  }
+
+  // --- update visibility cells
+  for (var cellGuid in cells) {
+    var cell = cells[cellGuid];
+    cell.isVisible = frustum.containsSphere(cell.sphere);
+    cell.distanceFromCamera = this.distanceSq(cameraPos, cell.center);
+    cell.activeLOD = useLOD
+      ? this.getActiveLOD(cell.distanceFromCamera, lodDistance)
+      : 0;
+  }
+
+  for (lodIndex = 0; lodIndex < payloads.length; lodIndex++) {
+    for (i = 0; i < payloads[lodIndex].length; i++) {
+      var payload = payloads[lodIndex][i];
+      var bufferArray = payload.culledMatrices;
+
+      // --- there two main culling strategies:
+      if (perInstanceCull === false) {
+        if (lodIndex === cell.activeLOD) {
+          // 1. Per cell visibility
+          var endCellIndex = 0;
+
+          for (var cellGuid in payload.matricesPerCell) {
+            // --- check if cell is visible
+            if (cells[cellGuid].isVisible === 0) continue;
+
+            var matricesPerCell = payload.matricesPerCell[cellGuid];
+            bufferArray.set(matricesPerCell, endCellIndex);
+
+            endCellIndex += matricesPerCell.length;
+          }
+          bufferArray = bufferArray.subarray(0, endCellIndex);
+        } else {
+          bufferArray = UranusEditorEntitiesPaint.zeroBuffer;
+        }
+      } else {
+        // 2. Per instance visibility
+        var matrixIndex = 0;
+        var visible;
+        var cell;
+        var matrices = payload.matrices;
+
+        for (var j = 0; j < matrices.length; j++) {
+          var matrix = matrices[j];
+
+          // --- check first if the containing cell is visible
+          visible = 1;
+
+          // --- frustum culling
+          if (visible > 0) {
+            visible = frustum.containsSphere(matrix.sphere);
+          }
+
+          // --- LOD culling
+          if (useLOD === true && visible > 0) {
+            var distanceFromCamera = this.distanceSq(
+              cameraPos,
+              matrix.sphere.center
+            );
+
+            var activeLOD = this.getActiveLOD(distanceFromCamera, lodDistance);
+            visible = lodIndex === activeLOD ? 1 : 0;
+          }
+
+          if (visible > 0) {
+            for (var m = 0; m < 16; m++) {
+              bufferArray[matrixIndex] = matrix.data[m];
+              matrixIndex++;
+            }
+          }
+        }
+
+        bufferArray = bufferArray.subarray(0, matrixIndex);
+      }
+
+      var instancesCount = bufferArray.length / 16;
+
+      // --- render the culled final buffer array
+      var vertexBuffer = payload.vertexBuffer;
+
+      // stats update
+      app.graphicsDevice._vram.vb -= vertexBuffer.numBytes;
+
+      var format = vertexBuffer.format;
+      vertexBuffer.numBytes = format.verticesByteSize
+        ? format.verticesByteSize
+        : format.size * instancesCount;
+
+      // stats update
+      app.graphicsDevice._vram.vb += vertexBuffer.numBytes;
+
+      vertexBuffer.setData(bufferArray);
+      payload.meshInstance.instancingData.count = instancesCount;
+      vertexBuffer.numVertices = instancesCount;
+    }
+
+    if (useLOD === false) break;
+  }
+};
+
+UranusEditorEntitiesPaint.prototype.getActiveLOD = function (
+  distanceFromCamera,
+  lodDistance
+) {
+  var activeLodIndex = 0;
+
+  if (
+    distanceFromCamera >= lodDistance[0] &&
+    distanceFromCamera < lodDistance[1]
+  ) {
+    activeLodIndex = 1;
+  } else if (
+    distanceFromCamera >= lodDistance[1] &&
+    distanceFromCamera < lodDistance[2]
+  ) {
+    activeLodIndex = 2;
+  } else if (distanceFromCamera >= lodDistance[2]) {
+    activeLodIndex = 3;
+  }
+
+  return activeLodIndex;
 };
 
 UranusEditorEntitiesPaint.prototype.enableHardwareInstancing1 = function () {
@@ -1490,8 +1640,6 @@ UranusEditorEntitiesPaint.prototype.updateHardwareInstancing1 = function () {
       );
     }.bind(this)
   );
-
-  console.log(this.entity.name, "instances", count);
 };
 
 UranusEditorEntitiesPaint.prototype.cullHardwareInstancing1 = function () {
@@ -1852,6 +2000,7 @@ UranusEditorEntitiesPaint.prototype.getInstanceData = function (
     var entity = pointer;
 
     this.instanceData.name = entity.name;
+    this.instanceData.entity = entity;
     this.instanceData.position.copy(entity.getPosition());
     this.instanceData.rotation.copy(entity.getRotation());
     this.instanceData.scale.copy(entity.getLocalScale());

@@ -3181,21 +3181,29 @@ UranusEditorEntitiesPaint.prototype.clearEditorInstances = function () {
     }
 };
 UranusEditorEntitiesPaint.prototype.clearInstances = function () {
-    if (!this.meshInstances) {
-        return;
-    }
-    // ToDo upgrade to new design`
-    this.meshInstances.forEach(function (meshInstance) {
-        if (meshInstance.instancingData &&
-            meshInstance.instancingData.vertexBuffer) {
-            meshInstance.instancingData.vertexBuffer.destroy();
+    var i, j;
+    var payloads = this.payloads;
+    if (payloads) {
+        for (var lodIndex = 0; lodIndex < payloads.length; lodIndex++) {
+            for (i = 0; i < payloads[lodIndex].length; i++) {
+                var payload = payloads[lodIndex][i];
+                var meshInstance = payload.meshInstance;
+                // --- remove mesh instance to render lists
+                var modelComponent = payload.baseEntity.model;
+                for (j = 0; j < modelComponent.layers.length; j++) {
+                    var layerID = modelComponent.layers[j];
+                    var layer = this.app.scene.layers.getLayerById(layerID);
+                    if (layer) {
+                        layer.removeMeshInstances([meshInstance]);
+                    }
+                }
+                meshInstance.setInstancing();
+            }
         }
-        meshInstance.setInstancing();
-        meshInstance.cullingData = undefined;
-    });
+    }
 };
 UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
-    // --- ToDo clean up previous payloads
+    this.clearInstances();
     // --- get a list of the spawn entities to be instanced
     this.spawnEntities =
         this.spawnEntity.children[0] instanceof pc.Entity
@@ -3345,8 +3353,8 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
             var modelComponent = payload.baseEntity.model;
             meshInstance.castShadow = modelComponent.castShadows;
             meshInstance.cull = false;
-            for (var j_1 = 0; j_1 < modelComponent.layers.length; j_1++) {
-                var layerID = modelComponent.layers[j_1];
+            for (j = 0; j < modelComponent.layers.length; j++) {
+                var layerID = modelComponent.layers[j];
                 var layer = this.app.scene.layers.getLayerById(layerID);
                 if (layer) {
                     layer.addMeshInstances([meshInstance]);

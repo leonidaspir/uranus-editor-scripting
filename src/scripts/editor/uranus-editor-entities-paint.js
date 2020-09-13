@@ -875,26 +875,36 @@ UranusEditorEntitiesPaint.prototype.clearEditorInstances = function () {
 };
 
 UranusEditorEntitiesPaint.prototype.clearInstances = function () {
-  if (!this.meshInstances) {
-    return;
-  }
+  var i, j;
+  var payloads = this.payloads;
 
-  // ToDo upgrade to new design`
-  this.meshInstances.forEach(function (meshInstance) {
-    if (
-      meshInstance.instancingData &&
-      meshInstance.instancingData.vertexBuffer
-    ) {
-      meshInstance.instancingData.vertexBuffer.destroy();
+  if (payloads) {
+    for (var lodIndex = 0; lodIndex < payloads.length; lodIndex++) {
+      for (i = 0; i < payloads[lodIndex].length; i++) {
+        var payload = payloads[lodIndex][i];
+
+        var meshInstance = payload.meshInstance;
+
+        // --- remove mesh instance to render lists
+        var modelComponent = payload.baseEntity.model;
+
+        for (j = 0; j < modelComponent.layers.length; j++) {
+          var layerID = modelComponent.layers[j];
+          var layer = this.app.scene.layers.getLayerById(layerID);
+
+          if (layer) {
+            layer.removeMeshInstances([meshInstance]);
+          }
+        }
+
+        meshInstance.setInstancing();
+      }
     }
-
-    meshInstance.setInstancing();
-    meshInstance.cullingData = undefined;
-  });
+  }
 };
 
 UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
-  // --- ToDo clean up previous payloads
+  this.clearInstances();
 
   // --- get a list of the spawn entities to be instanced
   this.spawnEntities =
@@ -914,6 +924,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
   // --- prepare the instancing payloads/cells
   this.payloads = [[], [], [], []];
   this.cells = {};
+
   var i, j;
 
   for (
@@ -1130,7 +1141,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
       meshInstance.castShadow = modelComponent.castShadows;
       meshInstance.cull = false;
 
-      for (let j = 0; j < modelComponent.layers.length; j++) {
+      for (j = 0; j < modelComponent.layers.length; j++) {
         var layerID = modelComponent.layers[j];
         var layer = this.app.scene.layers.getLayerById(layerID);
 

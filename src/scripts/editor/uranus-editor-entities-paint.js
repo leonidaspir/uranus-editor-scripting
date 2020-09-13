@@ -587,7 +587,6 @@ UranusEditorEntitiesPaint.prototype.parseMousePoint = function (
 ) {
   var camera = editor.call("camera:current").camera;
 
-  // ToDo run batcher
   var start = camera.screenToWorld(screenPosX, screenPosY, camera.nearClip);
   var end = camera.screenToWorld(screenPosX, screenPosY, camera.farClip);
 
@@ -1039,7 +1038,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
           var cell = this.getVisibilityCell(cellPos);
 
           matrix.cell = cell;
-          matrix.instance = instance;
+          matrix.instanceEntity = instance.entity;
 
           // --- add instance to per cell matrices list
           if (!payload.matricesPerCell[cell.guid]) {
@@ -1144,7 +1143,6 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
     }
   }
 
-  console.log(this.payloads);
   // console.log(this.entity.name, "instances", count);
 };
 
@@ -1244,7 +1242,14 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
   var hiddenCamera = this.hiddenCamera;
   var perInstanceCull = this.perInstanceCull;
   var lodDistance = this.lodDistance;
+  var isStatic = this.isStatic;
   var i, j, lodIndex;
+
+  var instanceData = this.instanceData;
+  var vec1 = this.vec1;
+  var vec2 = this.vec2;
+  var vec3 = this.vec3;
+  var quat = this.quat;
 
   // --- use custom culling, if required
   if (hiddenCamera && hideAfter > 0) {
@@ -1273,6 +1278,23 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
       var payload = payloads[lodIndex][i];
       var bufferArray = payload.culledMatrices;
 
+      var lodEntity = payload.baseEntity;
+      var spawnScale, spawnPos, offset;
+
+      if (isStatic === false) {
+        // --- get per payload references
+        spawnPos = lodEntity.getPosition();
+        spawnScale = lodEntity.getLocalScale();
+
+        // --- calculate pivot offset
+        offset = this.getMeshInstancePosOffset(
+          vec3,
+          payload.meshInstance.aabb.center,
+          spawnPos,
+          spawnScale
+        );
+      }
+
       // --- there two main culling strategies:
       if (perInstanceCull === false) {
         if (lodIndex === cell.activeLOD) {
@@ -1300,21 +1322,21 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         var matrices = payload.matrices;
 
         for (var j = 0; j < matrices.length; j++) {
-          var matrix = matrices[j];
+          var matrixInstance = matrices[j];
 
           // --- check first if the containing cell is visible
           visible = 1;
 
           // --- frustum culling
           if (visible > 0) {
-            visible = frustum.containsSphere(matrix.sphere);
+            visible = frustum.containsSphere(matrixInstance.sphere);
           }
 
           // --- LOD culling
           if (useLOD === true && visible > 0) {
             var distanceFromCamera = this.distanceSq(
               cameraPos,
-              matrix.sphere.center
+              matrixInstance.sphere.center
             );
 
             var activeLOD = this.getActiveLOD(distanceFromCamera, lodDistance);
@@ -1322,8 +1344,34 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
           }
 
           if (visible > 0) {
+            if (isStatic === false) {
+              var instanceEntity = matrixInstance.instanceEntity;
+
+              var instance = instanceData;
+              instance.position.copy(instanceEntity.getPosition());
+              instance.rotation.copy(instanceEntity.getRotation());
+              instance.scale.copy(instanceEntity.getLocalScale());
+
+              var scale = this.getInstanceScale(vec2, instance, spawnScale);
+              var position = this.getInstancePosition(
+                vec1,
+                instance,
+                offset,
+                scale
+              );
+
+              this.getInstanceMatrix(
+                matrixInstance,
+                quat,
+                instance,
+                position,
+                payload.meshRotation,
+                scale
+              );
+            }
+
             for (var m = 0; m < 16; m++) {
-              bufferArray[matrixIndex] = matrix.data[m];
+              bufferArray[matrixIndex] = matrixInstance.data[m];
               matrixIndex++;
             }
           }

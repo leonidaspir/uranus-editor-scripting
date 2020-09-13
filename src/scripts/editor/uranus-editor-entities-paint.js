@@ -1,5 +1,4 @@
 // LOD spawn entity as a single one, not a list
-// https://stackoverflow.com/questions/19553448/typedarray-set-vs-unrolled-loop-javascript
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
@@ -154,15 +153,6 @@ UranusEditorEntitiesPaint.attributes.add("densityReduce", {
     "Number of instances to be skipped for each instance rendered, useful to increase the performance in lower end devices.",
 });
 
-UranusEditorEntitiesPaint.attributes.add("densityDistance", {
-  type: "number",
-  default: 0,
-  title: "Density Distance",
-  min: 0,
-  description:
-    "The distance from the culling camera at which density reduce will be applied.",
-});
-
 UranusEditorEntitiesPaint.attributes.add("isStatic", {
   type: "boolean",
   default: false,
@@ -189,8 +179,6 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     this.lodLevels.z * this.lodLevels.z,
   ];
 
-  this.densityDistanceSq = this.densityDistance * this.densityDistance;
-
   this.spawnEntities = [];
   this.meshInstances = undefined;
 
@@ -216,7 +204,11 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
       this.streamingData = streamingData;
 
       if (this.hardwareInstancing) {
+        //const p1 = performance.now();
         this.prepareHardwareInstancing();
+        // const p2 = performance.now();
+        // const diff = p2 - p1;
+        // console.log(this.entity.name, diff.toFixed(2));
       }
     }.bind(this)
   );
@@ -408,10 +400,6 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
       value.y * value.y,
       value.z * value.z,
     ];
-  }
-
-  if (property === "densityDistance") {
-    this.densityDistanceSq = value * value;
   }
 };
 
@@ -1002,7 +990,19 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
           vertexBuffer: undefined,
         };
 
+        var densityReduce = this.densityReduce;
+        var activeDensity = densityReduce;
+
         for (i = 0; i < instances.length; i++) {
+          // --- check if we are reducing the density on build time
+          if (densityReduce > 0) {
+            activeDensity++;
+            if (activeDensity <= densityReduce) {
+              continue;
+            }
+            activeDensity = 0;
+          }
+
           var instance = this.getInstanceData(instances[i], spawnEntities);
 
           // --- check if we are interested in this mesh instance
@@ -1243,6 +1243,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
   var perInstanceCull = this.perInstanceCull;
   var lodDistance = this.lodDistance;
   var isStatic = this.isStatic;
+
   var i, j, lodIndex;
 
   var instanceData = this.instanceData;
@@ -1325,7 +1326,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
           var matrixInstance = matrices[j];
 
           // --- check first if the containing cell is visible
-          visible = 1;
+          visible = matrixInstance.cell.isVisible;
 
           // --- frustum culling
           if (visible > 0) {
@@ -1426,502 +1427,6 @@ UranusEditorEntitiesPaint.prototype.getActiveLOD = function (
   }
 
   return activeLodIndex;
-};
-
-UranusEditorEntitiesPaint.prototype.enableHardwareInstancing1 = function () {
-  this.spawnEntities =
-    this.spawnEntity.children[0] instanceof pc.Entity
-      ? this.spawnEntity.children
-      : [this.spawnEntity];
-
-  this.lodEntities = {};
-
-  // --- loop through the materials of the spawn entity and enable hw instancing
-  var materials = [];
-
-  this.spawnEntities.forEach(
-    function (spawnEntity) {
-      if (this.useLOD === false && !spawnEntity.model) return true;
-
-      if (this.useLOD === true && spawnEntity.children.length === 0)
-        return true;
-
-      var entities;
-
-      if (this.useLOD === true) {
-        entities = [];
-
-        spawnEntity.children.forEach(
-          function (child) {
-            if (this.isLodEntity(child)) {
-              entities.push(child);
-            }
-          }.bind(this)
-        );
-      } else {
-        entities = [spawnEntity];
-      }
-
-      entities.forEach(
-        function (lodEntity) {
-          if (lodEntity.model) {
-            lodEntity.model.meshInstances.forEach(
-              function (meshInstance) {
-                materials.push(meshInstance.material);
-              }.bind(this)
-            );
-          }
-        }.bind(this)
-      );
-    }.bind(this)
-  );
-
-  materials.forEach(
-    function (material) {
-      if (this.hardwareInstancing) {
-        material.onUpdateShader = function (options) {
-          options.useInstancing = true;
-          return options;
-        };
-      } else {
-        material.onUpdateShader = undefined;
-        meshInstance.setInstancing();
-      }
-      material.update();
-    }.bind(this)
-  );
-};
-
-UranusEditorEntitiesPaint.prototype.updateHardwareInstancing1 = function () {
-  var matrix = new pc.Mat4();
-
-  var spawnEntities = this.spawnEntities;
-
-  this.cells = {};
-  this.meshInstances = [];
-
-  var count = 0;
-
-  spawnEntities.forEach(
-    function (spawnEntity, spawnEntityIndex) {
-      if (this.useLOD === false && !spawnEntity.model) return true;
-
-      if (this.useLOD === true && spawnEntity.children.length === 0)
-        return true;
-
-      var entities;
-
-      if (this.useLOD === true) {
-        entities = [];
-
-        spawnEntity.children.forEach(
-          function (child) {
-            if (this.isLodEntity(child)) {
-              entities.push(child);
-            }
-          }.bind(this)
-        );
-      } else {
-        entities = [spawnEntity];
-      }
-
-      this.lodEntities[spawnEntity._guid] = entities;
-
-      // --- calculate number of instances
-      var instances = this.filterInstances(spawnEntity, spawnEntityIndex);
-
-      if (instances.length === 0) {
-        // --- if no instances, and we have a vertex buffer, clear it
-        entities.forEach(function (lodEntity) {
-          if (!lodEntity.model) return true;
-
-          lodEntity.model.meshInstances.forEach(function (meshInstance) {
-            if (
-              meshInstance.instancingData &&
-              meshInstance.instancingData.vertexBuffer
-            ) {
-              meshInstance.instancingData.vertexBuffer.destroy();
-            }
-
-            meshInstance.setInstancing();
-            meshInstance.cullingData = undefined;
-          });
-        });
-
-        return true;
-      }
-
-      entities.forEach(
-        function (lodEntity, lodIndex) {
-          if (!lodEntity.model) return true;
-
-          var spawnScale = lodEntity.getLocalScale();
-
-          lodEntity.model.meshInstances.forEach(
-            function (meshInstance, meshInstanceIndex) {
-              // --- calculate pivot offset
-              var offset = this.vec
-                .copy(meshInstance.aabb.center)
-                .sub(spawnEntity.getPosition());
-
-              offset.x /= spawnScale.x;
-              offset.y /= spawnScale.y;
-              offset.z /= spawnScale.z;
-
-              // --- store matrices for individual instances into array
-              var matrices = new Float32Array(instances.length * 16);
-              var matricesList = [];
-              var boundingsOriginal = [];
-              var cellsList = [];
-
-              var matrixIndex = 0;
-
-              for (var i = 0; i < instances.length; i++) {
-                var instance = this.getInstanceData(
-                  instances[i],
-                  spawnEntities
-                );
-
-                // --- check if we are interested in this mesh instance
-                if (instance.name !== spawnEntity.name) continue;
-
-                var scale = this.vec2
-                  .copy(instance.scale)
-                  .mul(spawnScale)
-                  .scale(0.01);
-
-                // --- calculate pivot point position
-                this.vec1.copy(instance.position);
-                this.vec1.x += offset.x * scale.x;
-                this.vec1.y += offset.y * scale.y;
-                this.vec1.z += offset.z * scale.z;
-
-                // --- calculate angles
-                this.quat
-                  .copy(instance.rotation)
-                  .mul(meshInstance.node.getRotation());
-
-                // --- calculate instance matrix
-                matrix.setTRS(this.vec1, this.quat, scale);
-
-                // copy matrix elements into array of floats
-                for (var m = 0; m < 16; m++) {
-                  matrices[matrixIndex] = matrix.data[m];
-                  matrixIndex++;
-                }
-
-                // --- save culling data
-                matricesList[i] = matrix.clone();
-
-                var bounding = new pc.BoundingSphere(
-                  this.vec1.clone(),
-                  meshInstance._aabb.halfExtents.length() * 2
-                );
-                boundingsOriginal[i] = bounding;
-
-                // --- add instance to cell
-                if (lodIndex === 0) {
-                  var cellPos = new pc.Vec3();
-                  this.getCellPos(cellPos, instance.position);
-                  var cellGuid = this.getCellGuid(cellPos);
-
-                  if (!this.cells[cellGuid]) {
-                    var halfExtents = this.vec1.copy(this.cellSize).scale(2);
-                    this.cells[cellGuid] = new pc.BoundingBox(
-                      cellPos.clone(),
-                      halfExtents.clone()
-                    );
-                    this.cells[cellGuid].sphere = new pc.BoundingSphere(
-                      cellPos.clone(),
-                      this.cellSize.x * 1.5
-                    );
-                  }
-                  cellsList[i] = this.cells[cellGuid];
-
-                  if (meshInstanceIndex === 0) {
-                    count++;
-                  }
-                }
-              }
-
-              // --- create the vertex buffer
-              if (
-                meshInstance.instancingData &&
-                meshInstance.instancingData.vertexBuffer
-              ) {
-                meshInstance.instancingData.vertexBuffer.destroy();
-              }
-
-              var renderInitial = false;
-              if (
-                this.useLOD === false ||
-                (this.useLOD === true && lodIndex === 0)
-              ) {
-                renderInitial = true;
-              }
-
-              var vertexBuffer = new pc.VertexBuffer(
-                this.app.graphicsDevice,
-                pc.VertexFormat.defaultInstancingFormat,
-                renderInitial ? instances.length : 0,
-                pc.BUFFER_STATIC,
-                renderInitial ? matrices : new Float32Array()
-              );
-
-              meshInstance.setInstancing(vertexBuffer);
-
-              meshInstance.cullingData = {
-                lodIndex: lodIndex,
-                instances: instances,
-                boundings: boundingsOriginal,
-                culledList: this.useLOD && lodIndex === 0 ? [] : undefined,
-                distances: this.useLOD && lodIndex === 0 ? [] : undefined,
-                matrices: matrices.slice(0),
-                matricesList: matricesList,
-                cellsList: cellsList,
-              };
-
-              this.meshInstances.push(meshInstance);
-            }.bind(this)
-          );
-        }.bind(this)
-      );
-    }.bind(this)
-  );
-};
-
-UranusEditorEntitiesPaint.prototype.cullHardwareInstancing1 = function () {
-  var cullingEnabled = this.cullingCamera && this.cullingCamera.camera;
-
-  if (!cullingEnabled && !this.useLOD && this.isStatic === true) {
-    return;
-  }
-
-  var app = this.app;
-  var spawnEntities = this.spawnEntities;
-  var isStatic = this.isStatic === true || this.streamingFile === undefined;
-  var useLOD = this.useLOD;
-  var vec = this.vec;
-  var vec1 = this.vec1;
-  var vec2 = this.vec2;
-  var quat = this.quat;
-  var lodDistance = this.lodDistance;
-  var lodEntities = this.lodEntities;
-  var hideAfter = this.hideAfter;
-  var perInstanceCull = this.perInstanceCull;
-  var densityReduce = this.densityReduce;
-  var densityDistance = this.densityDistanceSq;
-  var self = this;
-
-  var frustum = cullingEnabled ? this.cullingCamera.camera.frustum : null;
-  var cameraPos = cullingEnabled ? this.cullingCamera.getPosition() : null;
-
-  // --- use custom culling, if required
-  if (this.hiddenCamera && hideAfter > 0) {
-    this.hiddenCamera.setPosition(cameraPos);
-    this.hiddenCamera.setRotation(this.cullingCamera.getRotation());
-
-    app.renderer.updateCameraFrustum(this.hiddenCamera.camera.camera);
-
-    frustum = this.hiddenCamera.camera.frustum;
-  }
-
-  // --- update visibility cells
-  if (this.cells) {
-    for (var cellGuid in this.cells) {
-      var cell = this.cells[cellGuid];
-      cell.isVisible = frustum.containsSphere(cell.sphere);
-      cell.distanceFromCamera = self.distanceSq(cameraPos, cell.center);
-    }
-  }
-
-  for (var a = 0; a < spawnEntities.length; a++) {
-    var spawnEntity = spawnEntities[a];
-
-    if (useLOD === false && !spawnEntity.model) continue;
-
-    if (useLOD === true && spawnEntity.children.length === 0) continue;
-
-    var entities = lodEntities[spawnEntity._guid];
-
-    if (!entities) continue;
-
-    for (var lodIndex = 0; lodIndex < entities.length; lodIndex++) {
-      var lodEntity = entities[lodIndex];
-
-      var spawnScale = lodEntity.getLocalScale();
-
-      for (
-        var meshInstanceIndex = 0;
-        meshInstanceIndex < lodEntity.model.meshInstances.length;
-        meshInstanceIndex++
-      ) {
-        var meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
-
-        if (!meshInstance.cullingData) continue;
-
-        // --- check if we will be updating translations
-        if (isStatic === false) {
-          // --- calculate pivot offset
-          var offset = vec
-            .copy(meshInstance.aabb.center)
-            .sub(spawnEntity.getPosition());
-
-          offset.x /= spawnScale.x;
-          offset.y /= spawnScale.y;
-          offset.z /= spawnScale.z;
-        }
-
-        var instances = meshInstance.cullingData.instances;
-        var boundings = meshInstance.cullingData.boundings;
-
-        var matrices = meshInstance.cullingData.matrices;
-        var matricesList = meshInstance.cullingData.matricesList;
-
-        // --- find visible instances
-        var visibleCount = 0;
-        var matrixIndex = 0;
-        var visible = 0;
-        var activeDensity = densityReduce;
-
-        var cellsList =
-          entities[0].model.meshInstances[meshInstanceIndex].cullingData
-            .cellsList;
-
-        var culledList =
-          entities[0].model.meshInstances[meshInstanceIndex].cullingData
-            .culledList;
-
-        for (var i = 0; i < instances.length; i++) {
-          var cell = cellsList[i];
-          activeDensity++;
-
-          if (
-            cell.distanceFromCamera >= densityDistance &&
-            activeDensity <= densityReduce
-          ) {
-            continue;
-          }
-          activeDensity = 0;
-
-          var bounding = boundings[i];
-
-          // --- check first if the containing cell is visible
-          if (perInstanceCull === false && hideAfter > 0) {
-            visible = cell.isVisible;
-          } else {
-            visible = 1;
-          }
-
-          // --- frustum culling
-          if (perInstanceCull === true && visible > 0) {
-            visible = cullingEnabled
-              ? lodIndex === 0
-                ? frustum.containsSphere(bounding)
-                : culledList[i]
-              : 0;
-          }
-
-          // --- if LOD is used, we have a last step before rendering this instance: check if it's the active LOD
-          if (useLOD === true) {
-            if (lodIndex === 0) {
-              culledList[i] = visible;
-            }
-
-            if (visible > 0) {
-              var instanceLodIndex = meshInstance.cullingData.lodIndex;
-
-              var distanceFromCamera =
-                lodIndex === 0
-                  ? self.distanceSq(cameraPos, bounding.center)
-                  : entities[0].model.meshInstances[meshInstanceIndex]
-                      .cullingData.distances[i];
-
-              // --- save check for later LOD levels
-              if (lodIndex === 0) {
-                meshInstance.cullingData.distances[i] = distanceFromCamera;
-              }
-
-              var activeLodIndex = 0;
-
-              if (
-                distanceFromCamera >= lodDistance[0] &&
-                distanceFromCamera < lodDistance[1]
-              ) {
-                activeLodIndex = 1;
-              } else if (
-                distanceFromCamera >= lodDistance[1] &&
-                distanceFromCamera < lodDistance[2]
-              ) {
-                activeLodIndex = 2;
-              } else if (distanceFromCamera >= lodDistance[2]) {
-                activeLodIndex = 3;
-              }
-
-              if (instanceLodIndex !== activeLodIndex) {
-                visible = 0;
-              }
-            }
-          }
-
-          if (visible > 0) {
-            visibleCount++;
-
-            var matrix = matricesList[i];
-
-            // --- check if we will be updating translations
-            if (isStatic === false) {
-              var instance = instances[i];
-
-              var scale = vec2
-                .copy(instance.getLocalScale())
-                .mul(spawnScale)
-                .scale(0.01);
-
-              // --- calculate pivot point position
-              vec1.copy(instance.getPosition());
-              vec1.x += offset.x * scale.x;
-              vec1.y += offset.y * scale.y;
-              vec1.z += offset.z * scale.z;
-
-              // --- calculate angles
-              quat
-                .copy(instance.getRotation())
-                .mul(meshInstance.node.getRotation());
-
-              // --- calculate instance matrix
-              matrix.setTRS(vec1, quat, scale);
-            }
-
-            for (var m = 0; m < 16; m++) {
-              matrices[matrixIndex] = matrix.data[m];
-              matrixIndex++;
-            }
-          }
-        }
-
-        var subarray = matrices.subarray(0, matrixIndex);
-
-        // --- update the vertex buffer, by replacing the current one (uses the same bufferId)
-        var vertexBuffer = meshInstance.instancingData.vertexBuffer;
-
-        // stats update
-        app.graphicsDevice._vram.vb -= vertexBuffer.numBytes;
-
-        var format = vertexBuffer.format;
-        vertexBuffer.numBytes = format.verticesByteSize
-          ? format.verticesByteSize
-          : format.size * visibleCount;
-
-        // stats update
-        app.graphicsDevice._vram.vb += vertexBuffer.numBytes;
-
-        vertexBuffer.setData(subarray);
-        meshInstance.instancingData.count = visibleCount;
-        vertexBuffer.numVertices = visibleCount;
-      }
-    }
-  }
 };
 
 UranusEditorEntitiesPaint.prototype.setMat4Forward = function (

@@ -3247,6 +3247,8 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
         // --- main instancing prepare loop to find all the relevant mesh instances
         for (var lodIndex = 0; lodIndex < lodEntities.length; lodIndex++) {
             var lodEntity = lodEntities[lodIndex];
+            if (!lodEntity)
+                continue;
             // --- get per payload references
             var spawnPos = lodEntity.getPosition();
             var spawnScale = lodEntity.getLocalScale();
@@ -3452,6 +3454,8 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         for (i = 0; i < payloads[lodIndex].length; i++) {
             var payload = payloads[lodIndex][i];
             var bufferArray = payload.culledMatrices;
+            if (!bufferArray)
+                continue;
             var lodEntity = payload.baseEntity;
             var spawnScale, spawnPos, offset;
             if (isStatic === false) {

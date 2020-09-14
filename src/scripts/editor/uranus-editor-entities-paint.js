@@ -355,6 +355,24 @@ UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (
 
   this.setEraseState(btnErase, true);
 
+  // --- spawn binary asset
+  var btnCreateBinary = new ui.Button({
+    text: "+ Add Binary Asset",
+  });
+
+  btnCreateBinary.on(
+    "click",
+    function () {
+      editor.call("assets:create", {
+        type: "binary",
+        name: this.entity.name + " Binary",
+        preload: true,
+        file: new Blob(["[]"], { type: "application/octet-stream" }),
+      });
+    }.bind(this)
+  );
+  containerEl.append(btnCreateBinary.element);
+
   // --- clear button for removing all entity children
   var btnClearInstances = new ui.Button({
     text: "- Clear All Instances",
@@ -381,6 +399,8 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
 
   if (property === "streamingFile") {
     this.streamingData = this.loadStreamingData();
+
+    this.prepareHardwareInstancing();
   }
 
   if (property === "hardwareInstancing") {
@@ -1497,11 +1517,23 @@ UranusEditorEntitiesPaint.prototype.loadStreamingData = function () {
     function (resolve) {
       if (this.streamingFile) {
         var onLoad = function () {
-          var data =
-            Array.isArray(this.streamingFile.resources) &&
-            this.streamingFile.resources.length >= 10
-              ? this.streamingFile.resources
-              : [];
+          var data;
+
+          switch (this.streamingFile.type) {
+            case "binary":
+              data = msgpack.decode(
+                new Uint8Array(this.streamingFile.resource)
+              );
+              break;
+
+            default:
+              data =
+                Array.isArray(this.streamingFile.resources) &&
+                this.streamingFile.resources.length >= 10
+                  ? this.streamingFile.resources
+                  : [];
+              break;
+          }
 
           resolve(data);
         }.bind(this);
@@ -1521,15 +1553,23 @@ UranusEditorEntitiesPaint.prototype.loadStreamingData = function () {
 };
 
 UranusEditorEntitiesPaint.prototype.saveStreamingData = function () {
+  // --- check if binary compression is required
+  var contents;
+  switch (this.streamingFile.type) {
+    case "binary":
+      contents = msgpack.encode(this.streamingData);
+      break;
+
+    default:
+      contents = JSON.stringify(this.streamingData);
+      break;
+  }
+
   var url = "https://playcanvas.com/api/assets/" + this.streamingFile.id;
 
   var form = new FormData();
   form.append("name", "" + this.streamingFile.name);
-  form.append(
-    "file",
-    new Blob([JSON.stringify(this.streamingData)]),
-    this.streamingFile.name
-  );
+  form.append("file", new Blob([contents]), this.streamingFile.name);
 
   fetch(url, {
     method: "PUT",

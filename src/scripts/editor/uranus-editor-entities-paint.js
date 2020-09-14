@@ -1540,6 +1540,11 @@ UranusEditorEntitiesPaint.prototype.loadStreamingData = function () {
               data = msgpack.decode(
                 new Uint8Array(this.streamingFile.resource)
               );
+
+              if (Array.isArray(data) === false) {
+                data = [];
+              }
+
               break;
 
             default:

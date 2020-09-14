@@ -4216,6 +4216,9 @@ UranusEditorEntitiesPaint.prototype.loadStreamingData = function () {
                 switch (this.streamingFile.type) {
                     case "binary":
                         data = msgpack.decode(new Uint8Array(this.streamingFile.resource));
+                        if (Array.isArray(data) === false) {
+                            data = [];
+                        }
                         break;
                     default:
                         data =

@@ -2569,6 +2569,12 @@ UranusEditorEntitiesPaint.attributes.add("alignThem", {
     default: false,
     title: "Align To Surface",
 });
+UranusEditorEntitiesPaint.attributes.add("removeComponents", {
+    type: "string",
+    default: "model",
+    title: "Remove Components",
+    description: "A comma separated list of entity compoments to be removed when spawning an instance. When using HW instancing the model component should be removed.",
+});
 UranusEditorEntitiesPaint.attributes.add("streamingFile", {
     type: "asset",
     title: "Streaming File",
@@ -2589,12 +2595,6 @@ UranusEditorEntitiesPaint.attributes.add("hardwareInstancing", {
     type: "boolean",
     default: false,
     title: "Hardware Instancing",
-});
-UranusEditorEntitiesPaint.attributes.add("removeComponents", {
-    type: "string",
-    default: "model",
-    title: "Remove Components",
-    description: "A comma separated list of entity compoments to be removed when spawning an instance. When using HW instancing the model component should be removed.",
 });
 UranusEditorEntitiesPaint.attributes.add("cullingCamera", {
     type: "entity",
@@ -2672,15 +2672,17 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         this.cells = undefined;
     }
     // --- load first any streaming data available
-    this.loadStreamingData().then(function (streamingData) {
-        this.streamingData = streamingData;
-        if (this.hardwareInstancing) {
-            //const p1 = performance.now();
-            this.prepareHardwareInstancing();
-            // const p2 = performance.now();
-            // const diff = p2 - p1;
-            // console.log(this.entity.name, diff.toFixed(2));
-        }
+    this.loadModelAssets().then(function () {
+        this.loadStreamingData().then(function (streamingData) {
+            this.streamingData = streamingData;
+            if (this.hardwareInstancing) {
+                //const p1 = performance.now();
+                this.prepareHardwareInstancing();
+                // const p2 = performance.now();
+                // const diff = p2 - p1;
+                // console.log(this.entity.name, diff.toFixed(2));
+            }
+        }.bind(this));
     }.bind(this));
     // --- events
     this.on("attr", this.editorAttrChange, this);
@@ -3683,6 +3685,48 @@ UranusEditorEntitiesPaint.prototype.getCellPos = function (cell, pos) {
 };
 UranusEditorEntitiesPaint.prototype.getCellGuid = function (cell) {
     return cell.x.toFixed(3) + "_" + cell.y.toFixed(3) + "_" + cell.z.toFixed(3);
+};
+UranusEditorEntitiesPaint.prototype.loadModelAssets = function () {
+    return new Promise(function (resolve) {
+        var modelComponents = this.spawnEntity.findComponents("model");
+        // --- assemble a list of all assets
+        var assets = [];
+        var asset;
+        modelComponents.forEach(function (modelComponent) {
+            if (modelComponent.asset) {
+                asset = this.app.assets.get(modelComponent.asset);
+                if (asset) {
+                    assets.push(asset);
+                    // --- gather material assets
+                    if (modelComponent._mapping) {
+                        for (var key in modelComponent._mapping) {
+                            var materialAssetID = modelComponent._mapping[key];
+                            asset = this.app.assets.get(materialAssetID);
+                            if (asset)
+                                assets.push(asset);
+                        }
+                    }
+                }
+            }
+            // --- gather material assets
+            if (modelComponent.materialAsset) {
+                asset = this.app.assets.get(modelComponent.materialAsset);
+                if (asset)
+                    assets.push(asset);
+            }
+        }.bind(this));
+        // --- load the assets
+        var count = 0;
+        assets.forEach(function (assetToLoad) {
+            assetToLoad.ready(function () {
+                count++;
+                if (count === assets.length) {
+                    resolve();
+                }
+            });
+            this.app.assets.load(assetToLoad);
+        }.bind(this));
+    }.bind(this));
 };
 var UranusEffectAnimateMaterial = pc.createScript("uranusEffectAnimateMaterial");
 UranusEffectAnimateMaterial.attributes.add("inEditor", {

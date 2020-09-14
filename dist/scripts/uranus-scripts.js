@@ -3283,6 +3283,10 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                         activeDensity = 0;
                     }
                     var instance = this.getInstanceData(instances[i], spawnEntities);
+                    // --- disable model component if we have an entity and it exists
+                    if (instance.entity && instance.entity.model) {
+                        instance.entity.model.enabled = false;
+                    }
                     // --- check if we are interested in this mesh instance
                     if (instance.name !== spawnEntity.name)
                         continue;

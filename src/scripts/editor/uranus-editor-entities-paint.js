@@ -1,3 +1,6 @@
+// --- dependencies
+// msgpack.js
+// ----------------
 // LOD spawn entity as a single one, not a list
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 
@@ -948,6 +951,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
   // --- prepare the instancing payloads/cells
   this.payloads = [[], [], [], []];
   this.cells = {};
+  this.lodLevelsEnabled = [false, false, false, false];
 
   var i, j;
 
@@ -986,6 +990,8 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
       var lodEntity = lodEntities[lodIndex];
 
       if (!lodEntity) continue;
+
+      this.lodLevelsEnabled[lodIndex] = true;
 
       // --- get per payload references
       var spawnPos = lodEntity.getPosition();
@@ -1285,6 +1291,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
   var perInstanceCull = this.perInstanceCull;
   var lodDistance = this.lodDistance;
   var isStatic = this.isStatic;
+  var lodLevelsEnabled = this.lodLevelsEnabled;
 
   var i, j, lodIndex;
 
@@ -1312,7 +1319,11 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     cell.isVisible = frustum.containsSphere(cell.sphere);
     cell.distanceFromCamera = this.distanceSq(cameraPos, cell.center);
     cell.activeLOD = useLOD
-      ? this.getActiveLOD(cell.distanceFromCamera, lodDistance)
+      ? this.getActiveLOD(
+          cell.distanceFromCamera,
+          lodDistance,
+          this.lodLevelsEnabled
+        )
       : 0;
   }
 
@@ -1384,7 +1395,11 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
               matrixInstance.sphere.center
             );
 
-            var activeLOD = this.getActiveLOD(distanceFromCamera, lodDistance);
+            var activeLOD = this.getActiveLOD(
+              distanceFromCamera,
+              lodDistance,
+              lodLevelsEnabled
+            );
             visible = lodIndex === activeLOD ? 1 : 0;
           }
 
@@ -1452,18 +1467,19 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
 UranusEditorEntitiesPaint.prototype.getActiveLOD = function (
   distanceFromCamera,
-  lodDistance
+  lodDistance,
+  lodLevelsEnabled
 ) {
   var activeLodIndex = 0;
 
   if (
     distanceFromCamera >= lodDistance[0] &&
-    distanceFromCamera < lodDistance[1]
+    (distanceFromCamera < lodDistance[1] || lodLevelsEnabled[2] === false)
   ) {
     activeLodIndex = 1;
   } else if (
     distanceFromCamera >= lodDistance[1] &&
-    distanceFromCamera < lodDistance[2]
+    (distanceFromCamera < lodDistance[2] || lodLevelsEnabled[3] === false)
   ) {
     activeLodIndex = 2;
   } else if (distanceFromCamera >= lodDistance[2]) {

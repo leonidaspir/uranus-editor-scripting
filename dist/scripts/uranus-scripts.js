@@ -3105,6 +3105,9 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
         this.editorInitialize(true);
     }
 };
+// --- dependencies
+// msgpack.js
+// ----------------
 // LOD spawn entity as a single one, not a list
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
@@ -3832,6 +3835,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
     // --- prepare the instancing payloads/cells
     this.payloads = [[], [], [], []];
     this.cells = {};
+    this.lodLevelsEnabled = [false, false, false, false];
     var i, j;
     for (var spawnIndex = 0; spawnIndex < this.spawnEntities.length; spawnIndex++) {
         var spawnEntity = this.spawnEntities[spawnIndex];
@@ -3861,6 +3865,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
             var lodEntity = lodEntities[lodIndex];
             if (!lodEntity)
                 continue;
+            this.lodLevelsEnabled[lodIndex] = true;
             // --- get per payload references
             var spawnPos = lodEntity.getPosition();
             var spawnScale = lodEntity.getLocalScale();
@@ -4041,6 +4046,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     var perInstanceCull = this.perInstanceCull;
     var lodDistance = this.lodDistance;
     var isStatic = this.isStatic;
+    var lodLevelsEnabled = this.lodLevelsEnabled;
     var i, j, lodIndex;
     var instanceData = this.instanceData;
     var vec1 = this.vec1;
@@ -4063,7 +4069,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         cell.isVisible = frustum.containsSphere(cell.sphere);
         cell.distanceFromCamera = this.distanceSq(cameraPos, cell.center);
         cell.activeLOD = useLOD
-            ? this.getActiveLOD(cell.distanceFromCamera, lodDistance)
+            ? this.getActiveLOD(cell.distanceFromCamera, lodDistance, this.lodLevelsEnabled)
             : 0;
     }
     for (lodIndex = 0; lodIndex < payloads.length; lodIndex++) {
@@ -4117,7 +4123,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                     // --- LOD culling
                     if (useLOD === true && visible > 0) {
                         var distanceFromCamera = this.distanceSq(cameraPos, matrixInstance.sphere.center);
-                        var activeLOD = this.getActiveLOD(distanceFromCamera, lodDistance);
+                        var activeLOD = this.getActiveLOD(distanceFromCamera, lodDistance, lodLevelsEnabled);
                         visible = lodIndex === activeLOD ? 1 : 0;
                     }
                     if (visible > 0) {
@@ -4158,14 +4164,14 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
             break;
     }
 };
-UranusEditorEntitiesPaint.prototype.getActiveLOD = function (distanceFromCamera, lodDistance) {
+UranusEditorEntitiesPaint.prototype.getActiveLOD = function (distanceFromCamera, lodDistance, lodLevelsEnabled) {
     var activeLodIndex = 0;
     if (distanceFromCamera >= lodDistance[0] &&
-        distanceFromCamera < lodDistance[1]) {
+        (distanceFromCamera < lodDistance[1] || lodLevelsEnabled[2] === false)) {
         activeLodIndex = 1;
     }
     else if (distanceFromCamera >= lodDistance[1] &&
-        distanceFromCamera < lodDistance[2]) {
+        (distanceFromCamera < lodDistance[2] || lodLevelsEnabled[3] === false)) {
         activeLodIndex = 2;
     }
     else if (distanceFromCamera >= lodDistance[2]) {

@@ -161,7 +161,7 @@ UranusEditorEntitiesPaint.attributes.add("isStatic", {
   default: false,
   title: "Is Static",
   description:
-    "When hardware instancing is enabled, checking this flag will provide a performance increase since no translations will be updated on runtime.",
+    "When hardware instancing is enabled, checking this flag will provide a performance increase since no translations will be updated on runtime. It requires a culling camera to be referenced and Per Intance Cull to be enabled.",
 });
 
 UranusEditorEntitiesPaint.zeroBuffer = new Float32Array();

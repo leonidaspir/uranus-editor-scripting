@@ -4065,13 +4065,15 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         frustum = cullingCamera.camera.frustum;
     }
     // --- update visibility cells
-    for (var cellGuid in cells) {
-        var cell = cells[cellGuid];
-        cell.isVisible = frustum.containsSphere(cell.sphere);
-        cell.distanceFromCamera = this.distanceSq(cameraPos, cell.center);
-        cell.activeLOD = useLOD
-            ? this.getActiveLOD(cell.distanceFromCamera, lodDistance, this.lodLevelsEnabled)
-            : 0;
+    if (isStatic === true) {
+        for (var cellGuid in cells) {
+            var cell = cells[cellGuid];
+            cell.isVisible = frustum.containsSphere(cell.sphere);
+            cell.distanceFromCamera = this.distanceSq(cameraPos, cell.center);
+            cell.activeLOD = useLOD
+                ? this.getActiveLOD(cell.distanceFromCamera, lodDistance, this.lodLevelsEnabled)
+                : 0;
+        }
     }
     for (lodIndex = 0; lodIndex < payloads.length; lodIndex++) {
         for (i = 0; i < payloads[lodIndex].length; i++) {
@@ -4116,7 +4118,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                 for (var j = 0; j < matrices.length; j++) {
                     var matrixInstance = matrices[j];
                     // --- check first if the containing cell is visible
-                    visible = isStatic === false ? matrixInstance.cell.isVisible : 1;
+                    visible = isStatic === true ? matrixInstance.cell.isVisible : 1;
                     if (isStatic === false) {
                         var instanceEntity = matrixInstance.instanceEntity;
                         var instance = instanceData;

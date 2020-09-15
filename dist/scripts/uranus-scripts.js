@@ -4057,6 +4057,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     if (hiddenCamera && hideAfter > 0) {
         hiddenCamera.setPosition(cameraPos);
         hiddenCamera.setRotation(cullingCamera.getRotation());
+        hiddenCamera.camera.aspectRatio = cullingCamera.camera.aspectRatio;
         app.renderer.updateCameraFrustum(hiddenCamera.camera.camera);
         frustum = hiddenCamera.camera.frustum;
     }

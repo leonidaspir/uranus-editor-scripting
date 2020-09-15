@@ -1381,7 +1381,35 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
           var matrixInstance = matrices[j];
 
           // --- check first if the containing cell is visible
-          visible = matrixInstance.cell.isVisible;
+          visible = isStatic === false ? matrixInstance.cell.isVisible : 1;
+
+          if (isStatic === false) {
+            var instanceEntity = matrixInstance.instanceEntity;
+
+            var instance = instanceData;
+            instance.position.copy(instanceEntity.getPosition());
+            instance.rotation.copy(instanceEntity.getRotation());
+            instance.scale.copy(instanceEntity.getLocalScale());
+
+            var scale = this.getInstanceScale(vec2, instance, spawnScale);
+            var position = this.getInstancePosition(
+              vec1,
+              instance,
+              offset,
+              scale
+            );
+
+            matrixInstance.sphere.center.copy(position);
+
+            this.getInstanceMatrix(
+              matrixInstance,
+              quat,
+              instance,
+              position,
+              payload.meshRotation,
+              scale
+            );
+          }
 
           // --- frustum culling
           if (visible > 0) {
@@ -1404,32 +1432,6 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
           }
 
           if (visible > 0) {
-            if (isStatic === false) {
-              var instanceEntity = matrixInstance.instanceEntity;
-
-              var instance = instanceData;
-              instance.position.copy(instanceEntity.getPosition());
-              instance.rotation.copy(instanceEntity.getRotation());
-              instance.scale.copy(instanceEntity.getLocalScale());
-
-              var scale = this.getInstanceScale(vec2, instance, spawnScale);
-              var position = this.getInstancePosition(
-                vec1,
-                instance,
-                offset,
-                scale
-              );
-
-              this.getInstanceMatrix(
-                matrixInstance,
-                quat,
-                instance,
-                position,
-                payload.meshRotation,
-                scale
-              );
-            }
-
             for (var m = 0; m < 16; m++) {
               bufferArray[matrixIndex] = matrixInstance.data[m];
               matrixIndex++;

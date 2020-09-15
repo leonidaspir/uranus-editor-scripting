@@ -3239,7 +3239,7 @@ UranusEditorEntitiesPaint.attributes.add("isStatic", {
     type: "boolean",
     default: false,
     title: "Is Static",
-    description: "When hardware instancing is enabled, checking this flag will provide a performance increase since no translations will be updated on runtime.",
+    description: "When hardware instancing is enabled, checking this flag will provide a performance increase since no translations will be updated on runtime. It requires a culling camera to be referenced and Per Intance Cull to be enabled.",
 });
 UranusEditorEntitiesPaint.zeroBuffer = new Float32Array();
 UranusEditorEntitiesPaint.prototype.initialize = function () {
@@ -4115,7 +4115,18 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                 for (var j = 0; j < matrices.length; j++) {
                     var matrixInstance = matrices[j];
                     // --- check first if the containing cell is visible
-                    visible = matrixInstance.cell.isVisible;
+                    visible = isStatic === false ? matrixInstance.cell.isVisible : 1;
+                    if (isStatic === false) {
+                        var instanceEntity = matrixInstance.instanceEntity;
+                        var instance = instanceData;
+                        instance.position.copy(instanceEntity.getPosition());
+                        instance.rotation.copy(instanceEntity.getRotation());
+                        instance.scale.copy(instanceEntity.getLocalScale());
+                        var scale = this.getInstanceScale(vec2, instance, spawnScale);
+                        var position = this.getInstancePosition(vec1, instance, offset, scale);
+                        matrixInstance.sphere.center.copy(position);
+                        this.getInstanceMatrix(matrixInstance, quat, instance, position, payload.meshRotation, scale);
+                    }
                     // --- frustum culling
                     if (visible > 0) {
                         visible = frustum.containsSphere(matrixInstance.sphere);
@@ -4127,16 +4138,6 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                         visible = lodIndex === activeLOD ? 1 : 0;
                     }
                     if (visible > 0) {
-                        if (isStatic === false) {
-                            var instanceEntity = matrixInstance.instanceEntity;
-                            var instance = instanceData;
-                            instance.position.copy(instanceEntity.getPosition());
-                            instance.rotation.copy(instanceEntity.getRotation());
-                            instance.scale.copy(instanceEntity.getLocalScale());
-                            var scale = this.getInstanceScale(vec2, instance, spawnScale);
-                            var position = this.getInstancePosition(vec1, instance, offset, scale);
-                            this.getInstanceMatrix(matrixInstance, quat, instance, position, payload.meshRotation, scale);
-                        }
                         for (var m = 0; m < 16; m++) {
                             bufferArray[matrixIndex] = matrixInstance.data[m];
                             matrixIndex++;

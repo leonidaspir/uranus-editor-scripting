@@ -3108,7 +3108,6 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
 // --- dependencies
 // msgpack.js
 // ----------------
-// LOD spawn entity as a single one, not a list
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
     type: "boolean",
@@ -3271,9 +3270,11 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         this.cells = undefined;
     }
     // --- load first any streaming data available
+    this.hwReady = false;
     this.loadModelAssets().then(function () {
         this.loadStreamingData().then(function (streamingData) {
             this.streamingData = streamingData;
+            this.hwReady = true;
             if (this.hardwareInstancing) {
                 //const p1 = performance.now();
                 this.prepareHardwareInstancing();
@@ -3286,6 +3287,9 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     // --- events
     this.on("attr", this.editorAttrChange, this);
     this.on("state", function (enabled) {
+        if (!this.hwReady) {
+            return false;
+        }
         if (this.hardwareInstancing) {
             if (enabled) {
                 this.prepareHardwareInstancing();

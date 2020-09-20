@@ -932,9 +932,16 @@ UranusEditorEntitiesPaint.prototype.clearInstances = function () {
         }
 
         meshInstance.setInstancing();
+
+        if (payload.vertexBuffer) {
+          payload.vertexBuffer.destroy();
+        }
       }
     }
   }
+
+  this.payloads = undefined;
+  this.cells = undefined;
 };
 
 UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
@@ -1568,6 +1575,9 @@ UranusEditorEntitiesPaint.prototype.loadStreamingData = function () {
                   : [];
               break;
           }
+
+          // --- unload source file to preserve memory
+          this.streamingFile.unload();
 
           resolve(data);
         }.bind(this);

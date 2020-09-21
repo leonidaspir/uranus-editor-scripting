@@ -1,6 +1,7 @@
 // --- dependencies
 // msgpack.js
 // ----------------
+// Density increase
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
@@ -145,6 +146,14 @@ UranusEditorEntitiesPaint.attributes.add("lodLevels", {
   title: "LOD Levels",
 });
 
+UranusEditorEntitiesPaint.attributes.add("isStatic", {
+  type: "boolean",
+  default: false,
+  title: "Is Static",
+  description:
+    "When hardware instancing is enabled, checking this flag will provide a performance increase since no translations will be updated on runtime. It requires a culling camera to be referenced and Per Intance Cull to be enabled.",
+});
+
 UranusEditorEntitiesPaint.attributes.add("densityReduce", {
   type: "number",
   default: 0,
@@ -155,12 +164,30 @@ UranusEditorEntitiesPaint.attributes.add("densityReduce", {
     "Number of instances to be skipped for each instance rendered, useful to increase the performance in lower end devices.",
 });
 
-UranusEditorEntitiesPaint.attributes.add("isStatic", {
-  type: "boolean",
-  default: false,
-  title: "Is Static",
+UranusEditorEntitiesPaint.attributes.add("densityIncrease", {
+  type: "number",
+  default: 0,
+  title: "Density Increase",
+  min: 0,
+  precision: 0,
   description:
-    "When hardware instancing is enabled, checking this flag will provide a performance increase since no translations will be updated on runtime. It requires a culling camera to be referenced and Per Intance Cull to be enabled.",
+    "Number of instances to be randomnly added for each data instance, useful to increase complexity without massive data sets. Works only when streaming data.",
+});
+
+UranusEditorEntitiesPaint.attributes.add("densityIncreaseRadius", {
+  type: "number",
+  default: 0,
+  title: "Density Increase Radius",
+  description:
+    "The radius at which to spawn a random instance using the data instance as center.",
+});
+
+UranusEditorEntitiesPaint.attributes.add("densityIncreaseRaycast", {
+  type: "boolean",
+  default: true,
+  title: "Density Increase Raycast",
+  description:
+    "If set to true a physics raycast will be cast to get the Y pos with accuracy, otherwise the same height will be used.",
 });
 
 UranusEditorEntitiesPaint.zeroBuffer = new Float32Array();
@@ -170,8 +197,11 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
   this.vec1 = new pc.Vec3();
   this.vec2 = new pc.Vec3();
   this.vec3 = new pc.Vec3();
+  this.vec4 = new pc.Vec3();
+  this.vec5 = new pc.Vec3();
   this.quat = new pc.Quat();
   this.matrix = new pc.Mat4();
+  this.randomPosition = new pc.Vec3();
 
   this.tempSphere = { center: null, radius: 0.5 };
 
@@ -212,11 +242,11 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
           this.hwReady = true;
 
           if (this.hardwareInstancing) {
-            //const p1 = performance.now();
+            const p1 = performance.now();
             this.prepareHardwareInstancing();
-            // const p2 = performance.now();
-            // const diff = p2 - p1;
-            // console.log(this.entity.name, diff.toFixed(2));
+            const p2 = performance.now();
+            const diff = p2 - p1;
+            console.log(this.entity.name, diff.toFixed(2));
           }
         }.bind(this)
       );
@@ -687,15 +717,7 @@ UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (
   // check how many items we will be creating
   if (this.itemsPerStroke > 1) {
     for (var i = 1; i <= this.itemsPerStroke; i++) {
-      var a = Math.random();
-      var b = Math.random();
-
-      this.randomPosition.x =
-        this.currentPosition.x +
-        b * this.brushRadius * Math.cos((2 * Math.PI * a) / b);
-      this.randomPosition.z =
-        this.currentPosition.z +
-        b * this.brushRadius * Math.sin((2 * Math.PI * a) / b);
+      this.getRandomPositionInRadius(this.currentPosition, this.brushRadius);
 
       // --- get elevation under the point
       this.vec.set(
@@ -739,6 +761,21 @@ UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (
   if (this.hardwareInstancing) {
     this.prepareHardwareInstancing();
   }
+};
+
+UranusEditorEntitiesPaint.prototype.getRandomPositionInRadius = function (
+  center,
+  radius
+) {
+  var a = Math.random();
+  var b = Math.random();
+
+  this.randomPosition.x =
+    center.x + b * radius * Math.cos((2 * Math.PI * a) / b);
+  this.randomPosition.z =
+    center.z + b * radius * Math.sin((2 * Math.PI * a) / b);
+
+  return this.randomPosition;
 };
 
 UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
@@ -800,13 +837,84 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
     }
   }
 
+  // --- rotate or align them
+  var angles = this.getBrushAngles(referenceEntity, normal);
+
   // --- scale them up
+  var scale = this.getBrushScale(referenceEntity);
+
+  // --- position + offset
+  var finalPosition = this.getBrushPosition(position, scale);
+
+  if (!this.streamingFile) {
+    item.history.enabled = false;
+
+    item.set("enabled", true);
+    item.set("position", [finalPosition.x, finalPosition.y, finalPosition.z]);
+    item.set("rotation", [angles.x, angles.y, angles.z]);
+    item.set("scale", [scale.x, scale.y, scale.z]);
+
+    item.history.enabled = true;
+  } else {
+    // --- save streaming info
+    this.streamingData.push(bankIndex);
+    this.streamingData.push(
+      this.roundNumber(finalPosition.x, this.streamingPrecision)
+    );
+    this.streamingData.push(
+      this.roundNumber(finalPosition.y, this.streamingPrecision)
+    );
+    this.streamingData.push(
+      this.roundNumber(finalPosition.z, this.streamingPrecision)
+    );
+    this.streamingData.push(
+      this.roundNumber(angles.x, this.streamingPrecision)
+    );
+    this.streamingData.push(
+      this.roundNumber(angles.y, this.streamingPrecision)
+    );
+    this.streamingData.push(
+      this.roundNumber(angles.z, this.streamingPrecision)
+    );
+    this.streamingData.push(this.roundNumber(scale.x, this.streamingPrecision));
+    this.streamingData.push(this.roundNumber(scale.y, this.streamingPrecision));
+    this.streamingData.push(this.roundNumber(scale.z, this.streamingPrecision));
+  }
+};
+
+UranusEditorEntitiesPaint.prototype.getBrushPosition = function (
+  position,
+  scale
+) {
+  var offset = this.vec4.copy(this.posOffset);
+
+  // --- if required project offset to scale
+  if (this.projectOffset) {
+    offset.x *= scale.x;
+    offset.y *= scale.y;
+    offset.z *= scale.z;
+  }
+
+  return this.vec5.set(
+    position.x + offset.x,
+    position.y + offset.y,
+    position.z + offset.z
+  );
+};
+
+UranusEditorEntitiesPaint.prototype.getBrushScale = function (referenceEntity) {
   var scale = this.vec.copy(referenceEntity.getLocalScale());
   var newScaleFactor = pc.math.random(this.scaleMinMax.x, this.scaleMinMax.y);
   scale.scale(newScaleFactor);
 
-  // --- rotate or align them
-  let angles = this.vec1;
+  return scale;
+};
+
+UranusEditorEntitiesPaint.prototype.getBrushAngles = function (
+  referenceEntity,
+  normal
+) {
+  var angles = this.vec1;
   if (this.alignThem) {
     // --- align in the direction of the hit normal
     this.setMat4Forward(this.matrix, normal, pc.Vec3.UP);
@@ -829,54 +937,7 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
       break;
   }
 
-  // --- position + offset
-  var offset = this.vec2.copy(this.posOffset);
-
-  // --- if required project offset to scale
-  if (this.projectOffset) {
-    offset.x *= scale.x;
-    offset.y *= scale.y;
-    offset.z *= scale.z;
-  }
-
-  if (!this.streamingFile) {
-    item.history.enabled = false;
-
-    item.set("enabled", true);
-    item.set("position", [
-      position.x + offset.x,
-      position.y + offset.y,
-      position.z + offset.z,
-    ]);
-    item.set("rotation", [angles.x, angles.y, angles.z]);
-    item.set("scale", [scale.x, scale.y, scale.z]);
-
-    item.history.enabled = true;
-  } else {
-    // --- save streaming info
-    this.streamingData.push(bankIndex);
-    this.streamingData.push(
-      this.roundNumber(position.x + offset.x, this.streamingPrecision)
-    );
-    this.streamingData.push(
-      this.roundNumber(position.y + offset.y, this.streamingPrecision)
-    );
-    this.streamingData.push(
-      this.roundNumber(position.z + offset.z, this.streamingPrecision)
-    );
-    this.streamingData.push(
-      this.roundNumber(angles.x, this.streamingPrecision)
-    );
-    this.streamingData.push(
-      this.roundNumber(angles.y, this.streamingPrecision)
-    );
-    this.streamingData.push(
-      this.roundNumber(angles.z, this.streamingPrecision)
-    );
-    this.streamingData.push(this.roundNumber(scale.x, this.streamingPrecision));
-    this.streamingData.push(this.roundNumber(scale.y, this.streamingPrecision));
-    this.streamingData.push(this.roundNumber(scale.z, this.streamingPrecision));
-  }
+  return angles;
 };
 
 UranusEditorEntitiesPaint.prototype.clearEditorInstances = function () {
@@ -1050,6 +1111,9 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
         var densityReduce = this.densityReduce;
         var activeDensity = densityReduce;
 
+        // --- increase density if required
+        var instancesData = [];
+
         for (i = 0; i < instances.length; i++) {
           // --- check if we are reducing the density on build time
           if (densityReduce > 0) {
@@ -1060,7 +1124,78 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
             activeDensity = 0;
           }
 
-          var instance = this.getInstanceData(instances[i], spawnEntities);
+          var instance = this.getInstanceData(
+            instances[i],
+            spawnEntities,
+            true
+          );
+          instancesData.push(instance);
+
+          if (this.densityIncrease > 0 && this.streamingFile) {
+            for (j = 0; j < Math.floor(this.densityIncrease); j++) {
+              var newPosition = this.getRandomPositionInRadius(
+                instance.position,
+                this.densityIncreaseRadius
+              );
+
+              var height = instance.position.y;
+              var normal;
+
+              // --- get elevation under the point
+              if (this.densityIncreaseRaycast) {
+                this.vec.set(
+                  newPosition.x,
+                  newPosition.y + 10000,
+                  newPosition.z
+                );
+                this.vec1.set(
+                  newPosition.x,
+                  newPosition.y - 10000,
+                  newPosition.z
+                );
+
+                var result = this.app.systems.rigidbody.raycastFirst(
+                  this.vec,
+                  this.vec1
+                );
+
+                if (result && result.entity.name.indexOf("Terrain") > -1) {
+                  height = result.point.y;
+                  normal = result.normal;
+                } else {
+                  continue;
+                }
+              }
+
+              newPosition.y = height;
+
+              // --- rotate or align them
+              var angles = this.getBrushAngles(lodEntity, normal);
+
+              // --- scale them up
+              var scale = this.getBrushScale(lodEntity);
+
+              // --- position + offset
+              var finalPosition = this.getBrushPosition(newPosition, scale);
+
+              var newInstance = {
+                name: instance.name,
+                position: new pc.Vec3().copy(finalPosition),
+                rotation: new pc.Quat().setFromEulerAngles(
+                  angles.x,
+                  angles.y,
+                  angles.z
+                ),
+                scale: new pc.Vec3().copy(scale),
+              };
+              instancesData.push(newInstance);
+            }
+          }
+        }
+
+        // --- main prepare loop
+        for (i = 0; i < instancesData.length; i++) {
+          var instance = instancesData[i];
 
           // --- disable model component if we have an entity and it exists
           if (instance.entity && instance.entity.model) {
@@ -1662,39 +1797,50 @@ UranusEditorEntitiesPaint.prototype.filterInstances = function (
 
 UranusEditorEntitiesPaint.prototype.getInstanceData = function (
   pointer,
-  spawnEntities
+  spawnEntities,
+  spawnData
 ) {
+  var instanceData = this.instanceData;
+  if (spawnData) {
+    instanceData = {
+      name: undefined,
+      position: new pc.Vec3(),
+      rotation: new pc.Quat(),
+      scale: new pc.Vec3(),
+    };
+  }
+
   if (!this.streamingFile) {
     var entity = pointer;
 
-    this.instanceData.name = entity.name;
-    this.instanceData.entity = entity;
-    this.instanceData.position.copy(entity.getPosition());
-    this.instanceData.rotation.copy(entity.getRotation());
-    this.instanceData.scale.copy(entity.getLocalScale());
+    instanceData.name = entity.name;
+    instanceData.entity = entity;
+    instanceData.position.copy(entity.getPosition());
+    instanceData.rotation.copy(entity.getRotation());
+    instanceData.scale.copy(entity.getLocalScale());
   } else {
     var data = this.streamingData;
-    this.instanceData.name = spawnEntities
+    instanceData.name = spawnEntities
       ? spawnEntities[data[pointer]].name
       : undefined;
-    this.instanceData.position.set(
+    instanceData.position.set(
       data[pointer + 1],
       data[pointer + 2],
       data[pointer + 3]
     );
-    this.instanceData.rotation.setFromEulerAngles(
+    instanceData.rotation.setFromEulerAngles(
       data[pointer + 4],
       data[pointer + 5],
       data[pointer + 6]
     );
-    this.instanceData.scale.set(
+    instanceData.scale.set(
       data[pointer + 7],
       data[pointer + 8],
       data[pointer + 9]
     );
   }
 
-  return this.instanceData;
+  return instanceData;
 };
 
 UranusEditorEntitiesPaint.prototype.distanceSq = function (lhs, rhs) {

@@ -3983,7 +3983,14 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
             meshInstance.material.update();
             // --- add mesh instance to render lists
             var modelComponent = payload.baseEntity.model;
-            meshInstance.castShadow = modelComponent.castShadows;
+            meshInstance.castShadow =
+                meshInstance.material.castShadows !== undefined
+                    ? meshInstance.material.castShadows
+                    : modelComponent.castShadows;
+            meshInstance.receiveShadow =
+                meshInstance.material.receiveShadows !== undefined
+                    ? meshInstance.material.receiveShadows
+                    : modelComponent.receiveShadows;
             meshInstance.cull = false;
             for (j = 0; j < modelComponent.layers.length; j++) {
                 var layerID = modelComponent.layers[j];

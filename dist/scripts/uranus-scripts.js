@@ -3296,7 +3296,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     // --- load first any streaming data available
     this.hwReady = false;
     this.loadModelAssets().then(function () {
-        this.loadStreamingData().then(function (streamingData) {
+        this.loadStreamingData(this.streamingFile).then(function (streamingData) {
             this.streamingData = streamingData;
             this.hwReady = true;
             if (this.hardwareInstancing) {
@@ -3309,7 +3309,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         }.bind(this));
     }.bind(this));
     // --- events
-    this.on("attr", this.editorAttrChange, this);
+    this.on("attr", this.onAttrChange, this);
     this.on("state", function (enabled) {
         if (!this.hwReady) {
             return false;
@@ -3427,7 +3427,7 @@ UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (element)
     btnClearInstances.on("click", this.clearEditorInstances.bind(this));
     containerEl.append(btnClearInstances.element);
 };
-UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value) {
+UranusEditorEntitiesPaint.prototype.onAttrChange = function (property, value) {
     if (Uranus.Editor.inEditor()) {
         if (this.building) {
             this.setGizmoState(false);
@@ -3438,8 +3438,10 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
         }
     }
     if (property === "streamingFile") {
-        this.streamingData = this.loadStreamingData();
-        this.prepareHardwareInstancing();
+        this.loadStreamingData(value).then(function (data) {
+            this.streamingData = data;
+            this.prepareHardwareInstancing();
+        }.bind(this));
     }
     if (property === "hardwareInstancing") {
         this.prepareHardwareInstancing();
@@ -4303,12 +4305,12 @@ UranusEditorEntitiesPaint.prototype.roundNumber = function (x, base) {
     // base can be 1e3, 1e3 etc
     return Math.round(x * base) / base;
 };
-UranusEditorEntitiesPaint.prototype.loadStreamingData = function () {
+UranusEditorEntitiesPaint.prototype.loadStreamingData = function (streamingFile) {
     return new Promise(function (resolve) {
-        if (this.streamingFile) {
+        if (streamingFile) {
             var onLoad = function () {
                 var data;
-                switch (this.streamingFile.type) {
+                switch (streamingFile.type) {
                     case "binary":
                         data = msgpack.decode(new Uint8Array(this.streamingFile.resource));
                         if (Array.isArray(data) === false) {
@@ -4317,22 +4319,22 @@ UranusEditorEntitiesPaint.prototype.loadStreamingData = function () {
                         break;
                     default:
                         data =
-                            Array.isArray(this.streamingFile.resources) &&
-                                this.streamingFile.resources.length >= 10
-                                ? this.streamingFile.resources
+                            Array.isArray(streamingFile.resources) &&
+                                streamingFile.resources.length >= 10
+                                ? streamingFile.resources
                                 : [];
                         break;
                 }
                 // --- unload source file to preserve memory
-                this.streamingFile.unload();
+                streamingFile.unload();
                 resolve(data);
             }.bind(this);
-            if (this.streamingFile.loaded) {
+            if (streamingFile.loaded) {
                 onLoad();
             }
             else {
-                this.streamingFile.ready(onLoad);
-                this.app.assets.load(this.streamingFile);
+                streamingFile.ready(onLoad);
+                this.app.assets.load(streamingFile);
             }
         }
         else {
@@ -4342,6 +4344,7 @@ UranusEditorEntitiesPaint.prototype.loadStreamingData = function () {
 };
 UranusEditorEntitiesPaint.prototype.saveStreamingData = function () {
     // --- check if binary compression is required
+    var filename = this.streamingFile.name;
     var contents;
     switch (this.streamingFile.type) {
         case "binary":
@@ -4349,12 +4352,16 @@ UranusEditorEntitiesPaint.prototype.saveStreamingData = function () {
             break;
         default:
             contents = JSON.stringify(this.streamingData);
+            // --- check if .json extension is included
+            if (filename.indexOf(".json") === -1) {
+                filename += ".json";
+            }
             break;
     }
     var url = "https://playcanvas.com/api/assets/" + this.streamingFile.id;
     var form = new FormData();
-    form.append("name", "" + this.streamingFile.name);
-    form.append("file", new Blob([contents]), this.streamingFile.name);
+    form.append("name", this.streamingFile.name);
+    form.append("file", new Blob([contents]), filename);
     fetch(url, {
         method: "PUT",
         headers: {

@@ -94,6 +94,9 @@ UranusTerrainGenerateHeightmap.prototype.createTerrain = function () {
         });
       }
 
+      // --- unload assets
+      this.heightMap.unload();
+
       this.app.fire("terrain:ready");
     }.bind(this)
   );

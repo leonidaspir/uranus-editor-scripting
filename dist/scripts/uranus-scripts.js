@@ -3309,7 +3309,9 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         }.bind(this));
     }.bind(this));
     // --- events
-    this.on("attr", this.onAttrChange, this);
+    if (Uranus.Editor.inEditor() === false) {
+        this.on("attr", this.onAttrChange, this);
+    }
     this.on("state", function (enabled) {
         if (!this.hwReady) {
             return false;
@@ -3433,7 +3435,7 @@ UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (element)
     btnClearInstances.on("click", this.clearEditorInstances.bind(this));
     containerEl.append(btnClearInstances.element);
 };
-UranusEditorEntitiesPaint.prototype.onAttrChange = function (property, value) {
+UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value) {
     if (Uranus.Editor.inEditor()) {
         if (this.building) {
             this.setGizmoState(false);

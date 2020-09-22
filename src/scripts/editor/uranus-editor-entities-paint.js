@@ -395,6 +395,14 @@ UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (
 
   this.setEraseState(btnErase, true);
 
+  // --- update HW instances button
+  var btnUpdateInstances = new ui.Button({
+    text: "+ Update HW Instances",
+  });
+
+  btnUpdateInstances.on("click", this.prepareHardwareInstancing.bind(this));
+  containerEl.append(btnUpdateInstances.element);
+
   // --- spawn binary asset
   var btnCreateBinary = new ui.Button({
     text: "+ Add Binary Asset",
@@ -1174,7 +1182,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
               var angles = this.getBrushAngles(lodEntity, normal);
 
               // --- scale them up
-              var scale = this.getBrushScale(lodEntity);
+              var scale = instance.scale;
 
               // --- position + offset
               var finalPosition = this.getBrushPosition(newPosition, scale);

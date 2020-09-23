@@ -242,11 +242,11 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
           this.hwReady = true;
 
           if (this.hardwareInstancing) {
-            const p1 = performance.now();
+            // const p1 = performance.now();
             this.prepareHardwareInstancing();
-            const p2 = performance.now();
-            const diff = p2 - p1;
-            console.log(this.entity.name, diff.toFixed(2));
+            // const p2 = performance.now();
+            // const diff = p2 - p1;
+            // console.log(this.entity.name, diff.toFixed(2));
           }
         }.bind(this)
       );

@@ -3108,7 +3108,7 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
 // --- dependencies
 // msgpack.js
 // ----------------
-// Density increase
+// https://community.khronos.org/t/how-can-i-make-far-objects-look-fading-or-transparent/71593/2
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
     type: "boolean",
@@ -3227,6 +3227,12 @@ UranusEditorEntitiesPaint.attributes.add("lodLevels", {
     default: [30, 50, 70],
     title: "LOD Levels",
 });
+UranusEditorEntitiesPaint.attributes.add("lodThreshold", {
+    type: "number",
+    default: 0.9,
+    title: "LOD Threshold",
+    description: "The amount of distance range where two LODs can overlap. Useful when doing LOD fade in/out effects.",
+});
 UranusEditorEntitiesPaint.attributes.add("isStatic", {
     type: "boolean",
     default: false,
@@ -3278,6 +3284,12 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         this.lodLevels.y * this.lodLevels.y,
         this.lodLevels.z * this.lodLevels.z,
     ];
+    this.lodDistanceRaw = [
+        this.lodLevels.x,
+        this.lodLevels.y,
+        this.lodLevels.z,
+        this.hideAfter,
+    ];
     this.spawnEntities = [];
     this.meshInstances = undefined;
     this.instanceData = {
@@ -3300,17 +3312,17 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
             this.streamingData = streamingData;
             this.hwReady = true;
             if (this.hardwareInstancing) {
-                var p1 = performance.now();
+                // const p1 = performance.now();
                 this.prepareHardwareInstancing();
-                var p2 = performance.now();
-                var diff = p2 - p1;
-                console.log(this.entity.name, diff.toFixed(2));
+                // const p2 = performance.now();
+                // const diff = p2 - p1;
+                // console.log(this.entity.name, diff.toFixed(2));
             }
         }.bind(this));
     }.bind(this));
     // --- events
     if (Uranus.Editor.inEditor() === false) {
-        this.on("attr", this.onAttrChange, this);
+        this.on("attr", this.editorAttrChange, this);
     }
     this.on("state", function (enabled) {
         if (!this.hwReady) {
@@ -3458,6 +3470,7 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
         var hideAfter = value;
         this.hiddenCamera.camera.farClip =
             hideAfter > 0 ? hideAfter : this.cullingCamera.camera.farClip;
+        this.lodDistanceRaw[3] = value;
         if (this.hardwareInstancing) {
             this.prepareHardwareInstancing();
         }
@@ -3468,6 +3481,7 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
             value.y * value.y,
             value.z * value.z,
         ];
+        this.lodDistanceRaw = [value.x, value.y, value.z, this.hideAfter];
     }
 };
 UranusEditorEntitiesPaint.prototype.setBuildingState = function (btnBuild, dontTrigger) {
@@ -4147,7 +4161,10 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     var perInstanceCull = this.perInstanceCull;
     var lodDistance = this.lodDistance;
     var isStatic = this.isStatic;
+    var lodLevels = this.lodLevels;
     var lodLevelsEnabled = this.lodLevelsEnabled;
+    var lodThreshold = this.lodThreshold;
+    var lodDistanceRaw = this.lodDistanceRaw;
     var i, j, lodIndex;
     var instanceData = this.instanceData;
     var vec1 = this.vec1;
@@ -4177,11 +4194,35 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         }
     }
     for (lodIndex = 0; lodIndex < payloads.length; lodIndex++) {
+        // --- prepare lod levels
+        lodDistanceRaw[2] = lodLevelsEnabled[3]
+            ? lodLevels.z
+            : hideAfter > 0
+                ? hideAfter
+                : 100000;
+        lodDistanceRaw[1] = lodLevelsEnabled[2]
+            ? lodLevels.y
+            : hideAfter > 0
+                ? hideAfter
+                : 100000;
+        lodDistanceRaw[0] = lodLevelsEnabled[1]
+            ? lodLevels.x
+            : hideAfter > 0
+                ? hideAfter
+                : 100000;
         for (i = 0; i < payloads[lodIndex].length; i++) {
             var payload = payloads[lodIndex][i];
             var bufferArray = payload.culledMatrices;
             if (!bufferArray)
                 continue;
+            // --- update effects uniforms
+            payload.meshInstance.setParameter("uranusFadeOutDistance", lodDistanceRaw[lodIndex]);
+            payload.meshInstance.setParameter("uranusFadeInDistance", lodIndex > 0 ? lodDistanceRaw[lodIndex - 1] : 0);
+            payload.meshInstance.setParameter("uranusViewPosition", [
+                cameraPos.x,
+                cameraPos.y,
+                cameraPos.z,
+            ]);
             var lodEntity = payload.baseEntity;
             var spawnScale, spawnPos, offset;
             if (isStatic === false) {
@@ -4238,8 +4279,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                     // --- LOD culling
                     if (useLOD === true && visible > 0) {
                         var distanceFromCamera = this.distanceSq(cameraPos, matrixInstance.sphere.center);
-                        var activeLOD = this.getActiveLOD(distanceFromCamera, lodDistance, lodLevelsEnabled);
-                        visible = lodIndex === activeLOD ? 1 : 0;
+                        visible = this.checkActiveLOD(distanceFromCamera, lodDistance, lodIndex, lodLevelsEnabled, lodThreshold);
                     }
                     if (visible > 0) {
                         for (var m = 0; m < 16; m++) {
@@ -4283,6 +4323,27 @@ UranusEditorEntitiesPaint.prototype.getActiveLOD = function (distanceFromCamera,
         activeLodIndex = 3;
     }
     return activeLodIndex;
+};
+UranusEditorEntitiesPaint.prototype.checkActiveLOD = function (distanceFromCamera, lodDistance, lodIndexToCheck, lodLevelsEnabled, lodThreshold) {
+    if (lodIndexToCheck === 0 &&
+        (distanceFromCamera < lodDistance[0] || lodLevelsEnabled[1] === false)) {
+        return 1;
+    }
+    else if (lodIndexToCheck === 1 &&
+        distanceFromCamera >= lodDistance[0] * lodThreshold &&
+        (distanceFromCamera < lodDistance[1] || lodLevelsEnabled[2] === false)) {
+        return 1;
+    }
+    else if (lodIndexToCheck === 2 &&
+        distanceFromCamera >= lodDistance[1] * lodThreshold &&
+        (distanceFromCamera < lodDistance[2] || lodLevelsEnabled[3] === false)) {
+        return 1;
+    }
+    else if (lodIndexToCheck === 3 &&
+        distanceFromCamera >= lodDistance[2] * lodThreshold) {
+        return 1;
+    }
+    return 0;
 };
 UranusEditorEntitiesPaint.prototype.setMat4Forward = function (mat4, forward, up) {
     var x = this.x;

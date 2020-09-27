@@ -68,6 +68,11 @@ UranusEffectWater.attributes.add("depthDiscard", {
   min: 0.0,
   max: 1.0,
 });
+UranusEffectWater.attributes.add("shoreOpacity", {
+  type: "number",
+  default: 2.0,
+  min: 0.0,
+});
 UranusEffectWater.attributes.add("autoUpdate", {
   type: "boolean",
   default: false,
@@ -79,8 +84,9 @@ UranusEffectWater.prototype.initialize = function () {
   this.shaderVert = this.getVertPassThroughShader();
   this.shaderBlur = this.getGaussianBlurShader();
   this.shaderWater = this.getWaterShader();
+  this.shaderOpacity = this.getOpacityShader();
 
-  this.blurSamples = 5;
+  this.blurSamples = 3;
   this.blurPasses = 3;
 
   this.dirty = true;
@@ -105,6 +111,7 @@ UranusEffectWater.prototype.initialize = function () {
 UranusEffectWater.prototype.prepare = function () {
   this.material = this.materialAsset.resource;
   this.material.chunks.diffusePS = this.shaderWater;
+  this.material.chunks.opacityPS = this.shaderOpacity;
 
   // --- we clear one of the default material maps, to use for our custom depth map later
   // --- the reason for not putting a custom uniform is to provide editor editing of the material without breaking the shader on recompilation
@@ -297,6 +304,7 @@ UranusEffectWater.prototype.updateUniforms = function () {
   this.material.setParameter("landWidth", this.landWidth);
   this.material.setParameter("depthFactor", this.depthFactor);
   this.material.setParameter("depthDiscard", this.depthDiscard);
+  this.material.setParameter("shoreOpacity", this.shoreOpacity);
 
   this.material.setParameter(
     "colorWater",
@@ -416,6 +424,46 @@ UranusEffectWater.prototype.getWaterShader = function () {
     "        dAlbedo = mix(dAlbedo, colorWave.rgb, colorWave.a * o);\n" +
     "    }\n" +
     "    dAlbedo.rgb += base * landWidth;\n" +
+    // "vec3 shoreMask = base;" +
+    // "float maxAlpha = max(shoreMask.r, max(shoreMask.g, shoreMask.b) );" +
+    // "    dAlbedo.rgb = vec3(maxAlpha);\n" +
     "}"
   );
+};
+
+UranusEffectWater.prototype.getOpacityShader = function () {
+  return `
+  #ifdef MAPFLOAT
+  uniform float material_opacity;
+  #endif
+  
+  uniform float shoreOpacity;
+
+  #ifdef MAPTEXTURE
+  uniform sampler2D texture_opacityMap;
+  #endif
+  
+  void getOpacity() {
+      dAlpha = 1.0;
+  
+      #ifdef MAPFLOAT
+      dAlpha *= material_opacity;
+      #endif
+  
+      #ifdef MAPTEXTURE
+
+      vec3 base = texture2DSRGB(texture_diffuseMap, $UV).rgb;
+      float shoreBase = max(base.r, max(base.g, base.b) );
+
+      float shoreAlpha = (1.0 - shoreBase * shoreOpacity);
+      float borderAlpha = texture2D(texture_opacityMap, $UV).$CH;
+
+      dAlpha *= min(shoreAlpha, borderAlpha);
+      #endif
+  
+      #ifdef MAPVERTEX
+      dAlpha *= clamp(vVertexColor.$VC, 0.0, 1.0);
+      #endif
+  }
+`;
 };

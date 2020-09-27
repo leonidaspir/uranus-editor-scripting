@@ -4649,6 +4649,11 @@ UranusEffectWater.attributes.add("depthDiscard", {
     min: 0.0,
     max: 1.0,
 });
+UranusEffectWater.attributes.add("shoreOpacity", {
+    type: "number",
+    default: 2.0,
+    min: 0.0,
+});
 UranusEffectWater.attributes.add("autoUpdate", {
     type: "boolean",
     default: false,
@@ -4659,7 +4664,8 @@ UranusEffectWater.prototype.initialize = function () {
     this.shaderVert = this.getVertPassThroughShader();
     this.shaderBlur = this.getGaussianBlurShader();
     this.shaderWater = this.getWaterShader();
-    this.blurSamples = 5;
+    this.shaderOpacity = this.getOpacityShader();
+    this.blurSamples = 3;
     this.blurPasses = 3;
     this.dirty = true;
     this.rendering = false;
@@ -4674,6 +4680,7 @@ UranusEffectWater.prototype.initialize = function () {
 UranusEffectWater.prototype.prepare = function () {
     this.material = this.materialAsset.resource;
     this.material.chunks.diffusePS = this.shaderWater;
+    this.material.chunks.opacityPS = this.shaderOpacity;
     // --- we clear one of the default material maps, to use for our custom depth map later
     // --- the reason for not putting a custom uniform is to provide editor editing of the material without breaking the shader on recompilation
     this.material.chunks.normalDetailMapPS =
@@ -4816,6 +4823,7 @@ UranusEffectWater.prototype.updateUniforms = function () {
     this.material.setParameter("landWidth", this.landWidth);
     this.material.setParameter("depthFactor", this.depthFactor);
     this.material.setParameter("depthDiscard", this.depthDiscard);
+    this.material.setParameter("shoreOpacity", this.shoreOpacity);
     this.material.setParameter("colorWater", this.mapColorToArray(this.colorWater, this.color3));
     this.material.setParameter("colorWave", this.mapColorToArray(this.colorWave, this.color));
 };
@@ -4912,7 +4920,13 @@ UranusEffectWater.prototype.getWaterShader = function () {
         "        dAlbedo = mix(dAlbedo, colorWave.rgb, colorWave.a * o);\n" +
         "    }\n" +
         "    dAlbedo.rgb += base * landWidth;\n" +
+        // "vec3 shoreMask = base;" +
+        // "float maxAlpha = max(shoreMask.r, max(shoreMask.g, shoreMask.b) );" +
+        // "    dAlbedo.rgb = vec3(maxAlpha);\n" +
         "}");
+};
+UranusEffectWater.prototype.getOpacityShader = function () {
+    return "\n  #ifdef MAPFLOAT\n  uniform float material_opacity;\n  #endif\n  \n  uniform float shoreOpacity;\n\n  #ifdef MAPTEXTURE\n  uniform sampler2D texture_opacityMap;\n  #endif\n  \n  void getOpacity() {\n      dAlpha = 1.0;\n  \n      #ifdef MAPFLOAT\n      dAlpha *= material_opacity;\n      #endif\n  \n      #ifdef MAPTEXTURE\n\n      vec3 base = texture2DSRGB(texture_diffuseMap, $UV).rgb;\n      float shoreBase = max(base.r, max(base.g, base.b) );\n\n      float shoreAlpha = (1.0 - shoreBase * shoreOpacity);\n      float borderAlpha = texture2D(texture_opacityMap, $UV).$CH;\n\n      dAlpha *= min(shoreAlpha, borderAlpha);\n      #endif\n  \n      #ifdef MAPVERTEX\n      dAlpha *= clamp(vVertexColor.$VC, 0.0, 1.0);\n      #endif\n  }\n";
 };
 var UranusHelperEntityPicker = pc.createScript("uranusHelperEntityPicker");
 UranusHelperEntityPicker.attributes.add("camera", {

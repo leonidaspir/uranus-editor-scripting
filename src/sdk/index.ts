@@ -1,16 +1,17 @@
 import Editor from "./core/main";
 
 declare var editor: any;
+declare var window: any;
 declare var Uranus: any;
 
-// @ts-ignore
 if (!window.Uranus) {
-  // @ts-ignore
-  window.Uranus = {};
+  window.Uranus = {
+    Editor: Editor,
+  };
 }
 
 if (Editor.inEditor() === true) {
-  new Editor();
+  Uranus.Editor = new Editor();
 
   if (editor && Uranus && Uranus.Editor) {
     const modules = [

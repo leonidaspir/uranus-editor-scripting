@@ -73,6 +73,16 @@ UranusEffectWater.attributes.add("shoreOpacity", {
   default: 2.0,
   min: 0.0,
 });
+UranusEffectWater.attributes.add("waveVertexLength", {
+  type: "number",
+  default: 1.0,
+  min: 0.0,
+});
+UranusEffectWater.attributes.add("waveVertexAmplitude", {
+  type: "number",
+  default: 1.0,
+  min: 0.0,
+});
 UranusEffectWater.attributes.add("autoUpdate", {
   type: "boolean",
   default: false,
@@ -85,6 +95,10 @@ UranusEffectWater.prototype.initialize = function () {
   this.shaderBlur = this.getGaussianBlurShader();
   this.shaderWater = this.getWaterShader();
   this.shaderOpacity = this.getOpacityShader();
+
+  this.shaderTransform = this.getTransformShader();
+
+  this.timer = 0;
 
   this.blurSamples = 3;
   this.blurPasses = 3;
@@ -112,6 +126,7 @@ UranusEffectWater.prototype.prepare = function () {
   this.material = this.materialAsset.resource;
   this.material.chunks.diffusePS = this.shaderWater;
   this.material.chunks.opacityPS = this.shaderOpacity;
+  this.material.chunks.transformVS = this.shaderTransform;
 
   // --- we clear one of the default material maps, to use for our custom depth map later
   // --- the reason for not putting a custom uniform is to provide editor editing of the material without breaking the shader on recompilation
@@ -305,6 +320,8 @@ UranusEffectWater.prototype.updateUniforms = function () {
   this.material.setParameter("depthFactor", this.depthFactor);
   this.material.setParameter("depthDiscard", this.depthDiscard);
   this.material.setParameter("shoreOpacity", this.shoreOpacity);
+  this.material.setParameter("waveVertexLength", this.waveVertexLength);
+  this.material.setParameter("waveVertexAmplitude", this.waveVertexAmplitude);
 
   this.material.setParameter(
     "colorWater",
@@ -335,6 +352,9 @@ UranusEffectWater.prototype.update = function (dt) {
   }
 
   this.material.setParameter("time", 1 - ((Date.now() / this.speed) % 1));
+
+  this.timer += dt;
+  this.material.setParameter("timer", this.timer);
 };
 
 UranusEffectWater.prototype.createFullscreenQuad = function (device) {
@@ -464,6 +484,37 @@ UranusEffectWater.prototype.getOpacityShader = function () {
       #ifdef MAPVERTEX
       dAlpha *= clamp(vVertexColor.$VC, 0.0, 1.0);
       #endif
+  }
+`;
+};
+
+UranusEffectWater.prototype.getTransformShader = function () {
+  return `
+
+  uniform float timer;
+  uniform float waveVertexLength;
+  uniform float waveVertexAmplitude;
+
+  mat4 getModelMatrix() {
+      return matrix_model;
+  }
+  
+  vec4 getPosition() {
+      dModelMatrix = getModelMatrix();
+      vec3 localPos = vertex_position; 
+  
+      vec4 posW = dModelMatrix * vec4(localPos, 1.0);
+      posW.y += cos( (posW.x + timer) /waveVertexLength ) * sin( (posW.z + timer) /waveVertexLength ) * waveVertexAmplitude;
+
+      dPositionW = posW.xyz;
+  
+      vec4 screenPos = matrix_viewProjection * posW;
+
+      return screenPos;
+  }
+  
+  vec3 getWorldPosition() {
+      return dPositionW;
   }
 `;
 };

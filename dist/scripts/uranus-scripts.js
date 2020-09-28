@@ -4654,6 +4654,16 @@ UranusEffectWater.attributes.add("shoreOpacity", {
     default: 2.0,
     min: 0.0,
 });
+UranusEffectWater.attributes.add("waveVertexLength", {
+    type: "number",
+    default: 1.0,
+    min: 0.0,
+});
+UranusEffectWater.attributes.add("waveVertexAmplitude", {
+    type: "number",
+    default: 1.0,
+    min: 0.0,
+});
 UranusEffectWater.attributes.add("autoUpdate", {
     type: "boolean",
     default: false,
@@ -4665,6 +4675,8 @@ UranusEffectWater.prototype.initialize = function () {
     this.shaderBlur = this.getGaussianBlurShader();
     this.shaderWater = this.getWaterShader();
     this.shaderOpacity = this.getOpacityShader();
+    this.shaderTransform = this.getTransformShader();
+    this.timer = 0;
     this.blurSamples = 3;
     this.blurPasses = 3;
     this.dirty = true;
@@ -4681,6 +4693,7 @@ UranusEffectWater.prototype.prepare = function () {
     this.material = this.materialAsset.resource;
     this.material.chunks.diffusePS = this.shaderWater;
     this.material.chunks.opacityPS = this.shaderOpacity;
+    this.material.chunks.transformVS = this.shaderTransform;
     // --- we clear one of the default material maps, to use for our custom depth map later
     // --- the reason for not putting a custom uniform is to provide editor editing of the material without breaking the shader on recompilation
     this.material.chunks.normalDetailMapPS =
@@ -4824,6 +4837,8 @@ UranusEffectWater.prototype.updateUniforms = function () {
     this.material.setParameter("depthFactor", this.depthFactor);
     this.material.setParameter("depthDiscard", this.depthDiscard);
     this.material.setParameter("shoreOpacity", this.shoreOpacity);
+    this.material.setParameter("waveVertexLength", this.waveVertexLength);
+    this.material.setParameter("waveVertexAmplitude", this.waveVertexAmplitude);
     this.material.setParameter("colorWater", this.mapColorToArray(this.colorWater, this.color3));
     this.material.setParameter("colorWave", this.mapColorToArray(this.colorWave, this.color));
 };
@@ -4844,6 +4859,8 @@ UranusEffectWater.prototype.update = function (dt) {
         this.updateWater();
     }
     this.material.setParameter("time", 1 - ((Date.now() / this.speed) % 1));
+    this.timer += dt;
+    this.material.setParameter("timer", this.timer);
 };
 UranusEffectWater.prototype.createFullscreenQuad = function (device) {
     // Create the vertex format
@@ -4927,6 +4944,9 @@ UranusEffectWater.prototype.getWaterShader = function () {
 };
 UranusEffectWater.prototype.getOpacityShader = function () {
     return "\n  #ifdef MAPFLOAT\n  uniform float material_opacity;\n  #endif\n  \n  uniform float shoreOpacity;\n\n  #ifdef MAPTEXTURE\n  uniform sampler2D texture_opacityMap;\n  #endif\n  \n  void getOpacity() {\n      dAlpha = 1.0;\n  \n      #ifdef MAPFLOAT\n      dAlpha *= material_opacity;\n      #endif\n  \n      #ifdef MAPTEXTURE\n\n      vec3 base = texture2DSRGB(texture_diffuseMap, $UV).rgb;\n      float shoreBase = max(base.r, max(base.g, base.b) );\n\n      float shoreAlpha = (1.0 - shoreBase * shoreOpacity);\n      float borderAlpha = texture2D(texture_opacityMap, $UV).$CH;\n\n      dAlpha *= min(shoreAlpha, borderAlpha);\n      #endif\n  \n      #ifdef MAPVERTEX\n      dAlpha *= clamp(vVertexColor.$VC, 0.0, 1.0);\n      #endif\n  }\n";
+};
+UranusEffectWater.prototype.getTransformShader = function () {
+    return "\n\n  uniform float timer;\n  uniform float waveVertexLength;\n  uniform float waveVertexAmplitude;\n\n  mat4 getModelMatrix() {\n      return matrix_model;\n  }\n  \n  vec4 getPosition() {\n      dModelMatrix = getModelMatrix();\n      vec3 localPos = vertex_position; \n  \n      vec4 posW = dModelMatrix * vec4(localPos, 1.0);\n      posW.y += cos( (posW.x + timer) /waveVertexLength ) * sin( (posW.z + timer) /waveVertexLength ) * waveVertexAmplitude;\n\n      dPositionW = posW.xyz;\n  \n      vec4 screenPos = matrix_viewProjection * posW;\n\n      return screenPos;\n  }\n  \n  vec3 getWorldPosition() {\n      return dPositionW;\n  }\n";
 };
 var UranusHelperEntityPicker = pc.createScript("uranusHelperEntityPicker");
 UranusHelperEntityPicker.attributes.add("camera", {

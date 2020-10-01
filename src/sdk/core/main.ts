@@ -70,6 +70,25 @@ export default class Editor {
     if (updatePhysics) {
       // @ts-ignore
       this.app.systems.rigidbody.onLibraryLoaded();
+
+      // --- add existing hierarchy to simulation
+      var rigidbodies: any = this.app.root.findComponents("rigidbody");
+
+      rigidbodies.forEach((rigidbody: any) => {
+        if (rigidbody.entity.collision) {
+          pc.RigidBodyComponent.prototype.constructor.call(
+            rigidbody,
+            rigidbody.system,
+            rigidbody.entity
+          );
+
+          var collision = rigidbody.entity.collision;
+          collision.system.recreatePhysicalShapes(collision);
+
+          rigidbody.enabled = false;
+          rigidbody.enabled = true;
+        }
+      });
     }
 
     this.appRunning = startImmediately;

@@ -26,7 +26,7 @@ if (Editor.inEditor() === true) {
 
     Uranus.Editor.loadModules(modules).then(function () {
       Uranus.Editor.startAppLoop(true, modules[0].loaded === true);
-      Uranus.Editor.batchExecuteScripts();
+      Uranus.Editor.batchExecuteScripts(true);
     });
   }
 }

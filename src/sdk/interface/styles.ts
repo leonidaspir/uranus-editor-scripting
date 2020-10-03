@@ -18,6 +18,9 @@ export default class Styles {
             margin-top: 9px;
             line-height: 33px !important;
         }
+        .uranus-button{
+            cursor: pointer;
+        }
         .uranus-messages{
             position: absolute;
             top: 0px;

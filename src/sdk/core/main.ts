@@ -93,8 +93,17 @@ export default class Editor {
 
     this.appRunning = startImmediately;
 
-    this.interface.addRunUpdateButton(
-      "Update Running",
+    this.interface.addUIButton(
+      "Parse Scripts",
+      "button",
+      this.appRunning,
+      () => {
+        this.batchExecuteScripts(false);
+      }
+    );
+
+    this.interface.addUIButton(
+      "Update() Running",
       "checkbox",
       this.appRunning,
       (state: boolean) => {

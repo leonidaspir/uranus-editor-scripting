@@ -50,6 +50,7 @@ export async function loadEditorScriptAssets(
     const item = editor.call("assets:scripts:assetByScript", scriptType);
 
     const asset = this.app.assets.get(item.get("id"));
+    asset.unload();
 
     const promise = new Promise((resolve) => {
       asset.ready(resolve);

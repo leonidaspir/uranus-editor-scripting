@@ -2,7 +2,7 @@ import Editor from "./main";
 
 declare var editor: any;
 
-export async function batchExecuteScripts(this: Editor) {
+export async function batchExecuteScripts(this: Editor, firstTime: boolean) {
   if (!editor) return;
 
   const scriptTypes = editor.call("assets:scripts:list");
@@ -17,7 +17,6 @@ export async function batchExecuteScripts(this: Editor) {
   const entities = editor.call("entities:list");
   const scriptInstances: any = {};
 
-  //console.log("Uranus.Editor starting script execution");
   this.interface.logMessage("Starting script execution");
 
   for (const item of entities) {
@@ -50,9 +49,6 @@ export async function batchExecuteScripts(this: Editor) {
       this.prepareEditorScriptAttributes(instance);
       instance.enabled = inEditor;
 
-      // console.log(
-      //   `Uranus.Editor added scriptType ${scriptType} on entity "${entity.name}"`
-      // );
       this.interface.logMessage(
         `Added scriptType <strong style="color: lightgreen;">${scriptType}</strong> on entity <strong style="color: cyan;">"${entity.name}"</strong>`
       );
@@ -76,40 +72,48 @@ export async function batchExecuteScripts(this: Editor) {
   }
 
   // --- subscribe to inspector render event to provide UI extension to editor scripts
-  editor.on("attributes:inspect[entity]", (items: any) => {
-    const resource_id = items[0].get("resource_id");
+  if (firstTime) {
+    editor.on("attributes:inspect[entity]", (items: any) => {
+      const resource_id = items[0].get("resource_id");
 
-    // --- each time the Playcanvas inspector opens, the script component DOM is re-rendered
-    // --- we find the element and pass it to the script editor callback, if requested
-    if (scriptInstances[resource_id]) {
-      const instancesRef = scriptInstances[resource_id];
-      const panelComponents = editor.call("attributes:entity.panelComponents");
-
-      instancesRef.scriptTypes.forEach((scriptType: string, index: number) => {
-        const nodeList = Array.from(
-          panelComponents.dom.querySelectorAll(".pcui-panel-header-title")
+      // --- each time the Playcanvas inspector opens, the script component DOM is re-rendered
+      // --- we find the element and pass it to the script editor callback, if requested
+      if (scriptInstances[resource_id]) {
+        const instancesRef = scriptInstances[resource_id];
+        const panelComponents = editor.call(
+          "attributes:entity.panelComponents"
         );
 
-        let element: any = nodeList.find(
-          (el: any) => el.textContent === scriptType
-        );
+        instancesRef.scriptTypes.forEach(
+          (scriptType: string, index: number) => {
+            const nodeList = Array.from(
+              panelComponents.dom.querySelectorAll(".pcui-panel-header-title")
+            );
 
-        if (element) {
-          try {
-            element = element.parentElement.parentElement.parentElement;
+            let element: any = nodeList.find(
+              (el: any) => el.textContent === scriptType
+            );
 
             if (element) {
-              const instance = instancesRef.instances[index];
+              try {
+                element = element.parentElement.parentElement.parentElement;
 
-              if (typeof instance["editorScriptPanelRender"] === "function") {
-                instance["editorScriptPanelRender"](element);
-              }
+                if (element) {
+                  const instance = instancesRef.instances[index];
+
+                  if (
+                    typeof instance["editorScriptPanelRender"] === "function"
+                  ) {
+                    instance["editorScriptPanelRender"](element);
+                  }
+                }
+              } catch (error) {}
             }
-          } catch (error) {}
-        }
-      });
-    }
-  });
+          }
+        );
+      }
+    });
+  }
 }
 
 export function prepareEditorScriptAttributes(script: any) {

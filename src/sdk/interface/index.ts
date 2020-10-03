@@ -3,6 +3,7 @@ import Styles from "./styles";
 export default class Interface {
   private toolbar: HTMLElement;
   private messages: HTMLElement;
+  private list: HTMLElement;
 
   constructor() {}
 
@@ -46,6 +47,13 @@ export default class Interface {
       }
     };
 
+    this.list = document.createElement("ul");
+    this.list.classList.add("uranus-list");
+    this.list.style.position = "absolute";
+    this.list.style.top = "32px";
+
+    this.toolbar.appendChild(this.list);
+
     // Attach a message container element
     this.addMessagesOutput();
 
@@ -74,23 +82,18 @@ export default class Interface {
     }, 3000);
   }
 
-  addRunUpdateButton(
+  addUIButton(
     label: string,
     type: string,
     initialValue: any,
     callback: Function
   ) {
-    const list = document.createElement("ul");
-    list.classList.add("uranus-list");
-    list.style.position = "absolute";
-    list.style.top = "32px";
-
     const button = document.createElement("li");
     button.innerHTML = label;
     button.classList.add("uranus-list-item");
-    list.appendChild(button);
+    this.list.appendChild(button);
 
-    let element;
+    let element: any = button;
 
     switch (type) {
       case "checkbox":
@@ -98,15 +101,22 @@ export default class Interface {
         element.setAttribute("type", "checkbox");
         element.checked = initialValue;
         element.classList.add("uranus-checkbox");
+
+        button.appendChild(element);
+
+        element.addEventListener("change", (event: any) => {
+          callback(event.target.checked);
+        });
+
+        break;
+
+      case "button":
+        element.classList.add("uranus-button");
+
+        element.addEventListener("click", (event: any) => {
+          callback();
+        });
         break;
     }
-
-    button.appendChild(element);
-
-    element.addEventListener("change", (event: any) => {
-      callback(event.target.checked);
-    });
-
-    this.toolbar.appendChild(list);
   }
 }

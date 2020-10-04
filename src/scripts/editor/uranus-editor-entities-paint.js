@@ -1886,7 +1886,7 @@ UranusEditorEntitiesPaint.prototype.filterInstances = function (
   if (!this.streamingFile) {
     if (spawnEntity) {
       return this.entity.find(function (child) {
-        return child.name === spawnEntity.name;
+        return child instanceof pc.Entity && child.name === spawnEntity.name;
       });
     } else {
       return this.entity.children;

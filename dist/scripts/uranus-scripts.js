@@ -3942,7 +3942,12 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                 var meshRotation = meshInstance.node.getRotation();
                 var meshSphereRadius = meshInstance.aabb.halfExtents.length() * 2;
                 // --- calculate pivot offset
-                var offset = this.getMeshInstancePosOffset(vec3, meshInstance.aabb.center, spawnPos, spawnScale);
+                // var offset = this.getMeshInstancePosOffset(
+                //   vec3,
+                //   meshInstance.aabb.center,
+                //   spawnPos,
+                //   spawnScale
+                // );
                 // --- prepare a payload
                 var payload = {
                     baseEntity: lodEntity,
@@ -4016,11 +4021,16 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                     if (instance.name !== spawnEntity.name)
                         continue;
                     var scale = this.getInstanceScale(vec2, instance, spawnScale);
-                    var position = this.getInstancePosition(vec1, instance, offset, scale);
-                    var matrix = this.getInstanceMatrix(new pc.Mat4(), quat, instance, position, meshRotation, scale);
+                    // var position = this.getInstancePosition(
+                    //   vec1,
+                    //   instance,
+                    //   offset,
+                    //   scale
+                    // );
+                    var matrix = this.getInstanceMatrix(new pc.Mat4(), quat, instance, instance.position, meshRotation, scale);
                     payload.matrices.push(matrix);
                     // --- create a bounding box for this instance
-                    matrix.sphere = new pc.BoundingSphere(position.clone(), meshSphereRadius);
+                    matrix.sphere = new pc.BoundingSphere(instance.position.clone(), meshSphereRadius);
                     // --- add instance to total matrices list
                     var cellPos = this.getCellPos(vec, instance.position);
                     var cell = this.getVisibilityCell(cellPos);
@@ -4230,7 +4240,12 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                 spawnPos = lodEntity.getPosition();
                 spawnScale = lodEntity.getLocalScale();
                 // --- calculate pivot offset
-                offset = this.getMeshInstancePosOffset(vec3, payload.meshInstance.aabb.center, spawnPos, spawnScale);
+                // offset = this.getMeshInstancePosOffset(
+                //   vec3,
+                //   payload.meshInstance.aabb.center,
+                //   spawnPos,
+                //   spawnScale
+                // );
             }
             // --- there two main culling strategies:
             if (perInstanceCull === false) {
@@ -4268,9 +4283,14 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                         instance.rotation.copy(instanceEntity.getRotation());
                         instance.scale.copy(instanceEntity.getLocalScale());
                         var scale = this.getInstanceScale(vec2, instance, spawnScale);
-                        var position = this.getInstancePosition(vec1, instance, offset, scale);
-                        matrixInstance.sphere.center.copy(position);
-                        this.getInstanceMatrix(matrixInstance, quat, instance, position, payload.meshRotation, scale);
+                        // var position = this.getInstancePosition(
+                        //   vec1,
+                        //   instance,
+                        //   offset,
+                        //   scale
+                        // );
+                        matrixInstance.sphere.center.copy(instance.position);
+                        this.getInstanceMatrix(matrixInstance, quat, instance, instance.position, payload.meshRotation, scale);
                     }
                     // --- frustum culling
                     if (visible > 0) {

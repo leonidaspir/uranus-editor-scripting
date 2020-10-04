@@ -1115,12 +1115,12 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
         var meshSphereRadius = meshInstance.aabb.halfExtents.length() * 2;
 
         // --- calculate pivot offset
-        var offset = this.getMeshInstancePosOffset(
-          vec3,
-          meshInstance.aabb.center,
-          spawnPos,
-          spawnScale
-        );
+        // var offset = this.getMeshInstancePosOffset(
+        //   vec3,
+        //   meshInstance.aabb.center,
+        //   spawnPos,
+        //   spawnScale
+        // );
 
         // --- prepare a payload
         var payload = {
@@ -1237,18 +1237,18 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
           if (instance.name !== spawnEntity.name) continue;
 
           var scale = this.getInstanceScale(vec2, instance, spawnScale);
-          var position = this.getInstancePosition(
-            vec1,
-            instance,
-            offset,
-            scale
-          );
+          // var position = this.getInstancePosition(
+          //   vec1,
+          //   instance,
+          //   offset,
+          //   scale
+          // );
 
           var matrix = this.getInstanceMatrix(
             new pc.Mat4(),
             quat,
             instance,
-            position,
+            instance.position,
             meshRotation,
             scale
           );
@@ -1257,7 +1257,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
 
           // --- create a bounding box for this instance
           matrix.sphere = new pc.BoundingSphere(
-            position.clone(),
+            instance.position.clone(),
             meshSphereRadius
           );
 
@@ -1571,12 +1571,12 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
         spawnScale = lodEntity.getLocalScale();
 
         // --- calculate pivot offset
-        offset = this.getMeshInstancePosOffset(
-          vec3,
-          payload.meshInstance.aabb.center,
-          spawnPos,
-          spawnScale
-        );
+        // offset = this.getMeshInstancePosOffset(
+        //   vec3,
+        //   payload.meshInstance.aabb.center,
+        //   spawnPos,
+        //   spawnScale
+        // );
       }
 
       // --- there two main culling strategies:
@@ -1620,20 +1620,20 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
             instance.scale.copy(instanceEntity.getLocalScale());
 
             var scale = this.getInstanceScale(vec2, instance, spawnScale);
-            var position = this.getInstancePosition(
-              vec1,
-              instance,
-              offset,
-              scale
-            );
+            // var position = this.getInstancePosition(
+            //   vec1,
+            //   instance,
+            //   offset,
+            //   scale
+            // );
 
-            matrixInstance.sphere.center.copy(position);
+            matrixInstance.sphere.center.copy(instance.position);
 
             this.getInstanceMatrix(
               matrixInstance,
               quat,
               instance,
-              position,
+              instance.position,
               payload.meshRotation,
               scale
             );

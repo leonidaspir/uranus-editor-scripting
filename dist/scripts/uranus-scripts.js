@@ -3899,7 +3899,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
     var vec3 = this.vec3;
     var quat = this.quat;
     var matrix = this.matrix;
-    // --- prepare the instancing payloads/cells
+    // --- prepare the instancing payloads/cells per LOD level
     this.payloads = [[], [], [], []];
     this.cells = {};
     this.lodLevelsEnabled = [false, false, false, false];

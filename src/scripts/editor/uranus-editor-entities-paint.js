@@ -1146,7 +1146,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
           baseEntity: lodEntity,
           instances: instances,
           meshInstance: new pc.MeshInstance(
-            meshInstance.node,
+            meshInstance.node.clone(),
             meshInstance.mesh,
             meshInstance.material
           ),

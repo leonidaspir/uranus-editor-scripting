@@ -3995,7 +3995,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                                 payload = {
                                     baseEntity: lodEntity,
                                     instances: instances,
-                                    meshInstance: new pc.MeshInstance(meshInstance.node, meshInstance.mesh, meshInstance.material),
+                                    meshInstance: new pc.MeshInstance(meshInstance.node.clone(), meshInstance.mesh, meshInstance.material),
                                     meshRotation: meshRotation,
                                     matrices: [],
                                     matricesPerCell: {},

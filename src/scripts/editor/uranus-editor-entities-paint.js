@@ -1125,11 +1125,15 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
         meshInstance.visible = false;
 
         // --- fix strange angles when using HW directly
+        var meshRotation;
         if (!this.spawnEntity) {
           meshInstance.node.rotate(0, 90, 0);
+          meshRotation = meshInstance.node.getRotation().clone();
+          meshInstance.node.rotate(0, -90, 0);
+        } else {
+          meshRotation = meshInstance.node.getRotation().clone();
         }
 
-        var meshRotation = meshInstance.node.getRotation();
         var meshSphereRadius = meshInstance.aabb.halfExtents.length() * 2;
 
         // --- calculate pivot offset
@@ -1487,6 +1491,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
   // --- grab references for faster access
   var app = this.app;
+  var spawnEntity = this.spawnEntity;
   var cells = this.cells;
   var useLOD = this.useLOD;
   var hideAfter = this.hideAfter;

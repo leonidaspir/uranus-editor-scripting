@@ -3987,11 +3987,14 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                             for (meshInstanceIndex = 0; meshInstanceIndex < lodEntity.model.meshInstances.length; meshInstanceIndex++) {
                                 meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
                                 meshInstance.visible = false;
-                                // --- fix strange angles when using HW directly
                                 if (!this.spawnEntity) {
                                     meshInstance.node.rotate(0, 90, 0);
+                                    meshRotation = meshInstance.node.getRotation().clone();
+                                    meshInstance.node.rotate(0, -90, 0);
                                 }
-                                meshRotation = meshInstance.node.getRotation();
+                                else {
+                                    meshRotation = meshInstance.node.getRotation().clone();
+                                }
                                 meshSphereRadius = meshInstance.aabb.halfExtents.length() * 2;
                                 payload = {
                                     baseEntity: lodEntity,
@@ -4195,6 +4198,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     }
     // --- grab references for faster access
     var app = this.app;
+    var spawnEntity = this.spawnEntity;
     var cells = this.cells;
     var useLOD = this.useLOD;
     var hideAfter = this.hideAfter;

@@ -247,23 +247,19 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
   // --- load first any streaming data available
   this.hwReady = false;
 
-  this.loadModelAssets().then(
-    function () {
-      this.loadStreamingData(this.streamingFile).then(
-        function (streamingData) {
-          this.streamingData = streamingData;
+  this.loadStreamingData(this.streamingFile).then(
+    function (streamingData) {
+      this.streamingData = streamingData;
 
-          this.hwReady = true;
+      this.hwReady = true;
 
-          if (this.hardwareInstancing) {
-            // const p1 = performance.now();
-            this.prepareHardwareInstancing();
-            // const p2 = performance.now();
-            // const diff = p2 - p1;
-            // console.log(this.entity.name, diff.toFixed(2));
-          }
-        }.bind(this)
-      );
+      if (this.hardwareInstancing) {
+        // const p1 = performance.now();
+        this.prepareHardwareInstancing();
+        // const p2 = performance.now();
+        // const diff = p2 - p1;
+        // console.log(this.entity.name, diff.toFixed(2));
+      }
     }.bind(this)
   );
 
@@ -1036,14 +1032,31 @@ UranusEditorEntitiesPaint.prototype.clearInstances = function () {
   this.cells = undefined;
 };
 
-UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
+UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function () {
   this.clearInstances();
 
   // --- get a list of the spawn entities to be instanced
-  this.spawnEntities =
-    this.spawnEntity.children[0] instanceof pc.Entity
-      ? this.spawnEntity.children
-      : [this.spawnEntity];
+  if (this.spawnEntity) {
+    this.spawnEntities =
+      this.spawnEntity.children[0] instanceof pc.Entity
+        ? this.spawnEntity.children
+        : [this.spawnEntity];
+  } else {
+    // --- use the children as spawn entities, names for instanced entities should be the same
+    var spawnNames = [];
+    this.spawnEntities = [];
+
+    this.entity.children.forEach(
+      function (entity) {
+        if (spawnNames.indexOf(entity.name) === -1) {
+          spawnNames.push(entity.name);
+          this.spawnEntities.push(entity);
+        }
+      }.bind(this)
+    );
+  }
+
+  await this.loadModelAssets(this.spawnEntities);
 
   // --- references for faster access
   var spawnEntities = this.spawnEntities;
@@ -1100,7 +1113,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
       this.lodLevelsEnabled[lodIndex] = true;
 
       // --- get per payload references
-      var spawnPos = lodEntity.getPosition();
+      // var spawnPos = lodEntity.getPosition();
       var spawnScale = lodEntity.getLocalScale();
 
       for (
@@ -1110,6 +1123,11 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
       ) {
         var meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
         meshInstance.visible = false;
+
+        // --- fix strange angles when using HW directly
+        if (!this.spawnEntity) {
+          meshInstance.node.rotate(0, 90, 0);
+        }
 
         var meshRotation = meshInstance.node.getRotation();
         var meshSphereRadius = meshInstance.aabb.halfExtents.length() * 2;
@@ -1975,10 +1993,18 @@ UranusEditorEntitiesPaint.prototype.getCellGuid = function (cell) {
   return cell.x.toFixed(3) + "_" + cell.y.toFixed(3) + "_" + cell.z.toFixed(3);
 };
 
-UranusEditorEntitiesPaint.prototype.loadModelAssets = function () {
+UranusEditorEntitiesPaint.prototype.loadModelAssets = function (spawnEntities) {
   return new Promise(
     function (resolve) {
-      var modelComponents = this.spawnEntity.findComponents("model");
+      var modelComponents = [];
+
+      spawnEntities.forEach(
+        function (spawnEntity) {
+          modelComponents = modelComponents.concat(
+            spawnEntity.findComponents("model")
+          );
+        }.bind(this)
+      );
 
       // --- assemble a list of all assets
       var assets = [];

@@ -3105,6 +3105,42 @@ UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, 
         this.editorInitialize(true);
     }
 };
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __generator = (this && this.__generator) || function (thisArg, body) {
+    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+    function verb(n) { return function (v) { return step([n, v]); }; }
+    function step(op) {
+        if (f) throw new TypeError("Generator is already executing.");
+        while (_) try {
+            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+            if (y = 0, t) op = [op[0] & 2, t.value];
+            switch (op[0]) {
+                case 0: case 1: t = op; break;
+                case 4: _.label++; return { value: op[1], done: false };
+                case 5: _.label++; y = op[1]; op = [0]; continue;
+                case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                default:
+                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                    if (t[2]) _.ops.pop();
+                    _.trys.pop(); continue;
+            }
+            op = body.call(thisArg, _);
+        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+    }
+};
 // --- dependencies
 // msgpack.js
 // ----------------
@@ -3307,18 +3343,16 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     }
     // --- load first any streaming data available
     this.hwReady = false;
-    this.loadModelAssets().then(function () {
-        this.loadStreamingData(this.streamingFile).then(function (streamingData) {
-            this.streamingData = streamingData;
-            this.hwReady = true;
-            if (this.hardwareInstancing) {
-                // const p1 = performance.now();
-                this.prepareHardwareInstancing();
-                // const p2 = performance.now();
-                // const diff = p2 - p1;
-                // console.log(this.entity.name, diff.toFixed(2));
-            }
-        }.bind(this));
+    this.loadStreamingData(this.streamingFile).then(function (streamingData) {
+        this.streamingData = streamingData;
+        this.hwReady = true;
+        if (this.hardwareInstancing) {
+            // const p1 = performance.now();
+            this.prepareHardwareInstancing();
+            // const p2 = performance.now();
+            // const diff = p2 - p1;
+            // console.log(this.entity.name, diff.toFixed(2));
+        }
     }.bind(this));
     // --- events
     if (Uranus.Editor.inEditor() === false) {
@@ -3885,233 +3919,232 @@ UranusEditorEntitiesPaint.prototype.clearInstances = function () {
     this.cells = undefined;
 };
 UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
-    this.clearInstances();
-    // --- get a list of the spawn entities to be instanced
-    this.spawnEntities =
-        this.spawnEntity.children[0] instanceof pc.Entity
-            ? this.spawnEntity.children
-            : [this.spawnEntity];
-    // --- references for faster access
-    var spawnEntities = this.spawnEntities;
-    var vec = this.vec;
-    var vec1 = this.vec1;
-    var vec2 = this.vec2;
-    var vec3 = this.vec3;
-    var quat = this.quat;
-    var matrix = this.matrix;
-    // --- prepare the instancing payloads/cells per LOD level
-    this.payloads = [[], [], [], []];
-    this.cells = {};
-    this.lodLevelsEnabled = [false, false, false, false];
-    var i, j;
-    for (var spawnIndex = 0; spawnIndex < this.spawnEntities.length; spawnIndex++) {
-        var spawnEntity = this.spawnEntities[spawnIndex];
-        // --- get the instances / translation data
-        var instances = this.filterInstances(spawnEntity, spawnIndex);
-        // --- gather LOD entities or use the spawn entity for finding the base entity
-        var lodEntities = [];
-        if (spawnEntity.model) {
-            lodEntities.push(spawnEntity);
-        }
-        else {
-            for (i = 0; i < spawnEntity.children.length; i++) {
-                var child = spawnEntity.children[i];
-                if (!child.model)
-                    continue;
-                // --- search for a LOD entity
-                for (j = 0; j <= 3; j++) {
-                    if (child.name.indexOf("_LOD" + j) > -1) {
-                        lodEntities[j] = child;
-                        break;
+    return __awaiter(this, void 0, void 0, function () {
+        var spawnNames, spawnEntities, vec, vec1, vec2, vec3, quat, matrix, i, j, spawnIndex, spawnEntity, instances, lodEntities, child, lodIndex, lodEntity, spawnScale, meshInstanceIndex, meshInstance, meshRotation, meshSphereRadius, payload, densityReduce, activeDensity, instancesData, instance, newPosition, height, normal, result, angles, scale, finalPosition, newInstance, instance, scale, matrix, cellPos, cell, lodIndex, lodPayloads, payload, totalMatrices, totalMatrixIndex, startCellIndex, endCellIndex, cellGuid, matricesPerCell, j, m, cellMatrices, bufferArray, meshInstance, modelComponent, layerID, layer;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    this.clearInstances();
+                    // --- get a list of the spawn entities to be instanced
+                    if (this.spawnEntity) {
+                        this.spawnEntities =
+                            this.spawnEntity.children[0] instanceof pc.Entity
+                                ? this.spawnEntity.children
+                                : [this.spawnEntity];
                     }
-                }
-            }
-        }
-        // --- main instancing prepare loop to find all the relevant mesh instances
-        for (var lodIndex = 0; lodIndex < lodEntities.length; lodIndex++) {
-            var lodEntity = lodEntities[lodIndex];
-            if (!lodEntity)
-                continue;
-            this.lodLevelsEnabled[lodIndex] = true;
-            // --- get per payload references
-            var spawnPos = lodEntity.getPosition();
-            var spawnScale = lodEntity.getLocalScale();
-            for (var meshInstanceIndex = 0; meshInstanceIndex < lodEntity.model.meshInstances.length; meshInstanceIndex++) {
-                var meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
-                meshInstance.visible = false;
-                var meshRotation = meshInstance.node.getRotation();
-                var meshSphereRadius = meshInstance.aabb.halfExtents.length() * 2;
-                // --- calculate pivot offset
-                // var offset = this.getMeshInstancePosOffset(
-                //   vec3,
-                //   meshInstance.aabb.center,
-                //   spawnPos,
-                //   spawnScale
-                // );
-                // --- prepare a payload
-                var payload = {
-                    baseEntity: lodEntity,
-                    instances: instances,
-                    meshInstance: new pc.MeshInstance(meshInstance.node, meshInstance.mesh, meshInstance.material),
-                    meshRotation: meshRotation,
-                    matrices: [],
-                    matricesPerCell: {},
-                    totalBuffer: undefined,
-                    totalMatrices: undefined,
-                    vertexBuffer: undefined,
-                };
-                var densityReduce = this.densityReduce;
-                var activeDensity = densityReduce;
-                // --- increase density if required
-                var instancesData = [];
-                for (i = 0; i < instances.length; i++) {
-                    // --- check if we are reducing the density on build time
-                    if (densityReduce > 0) {
-                        activeDensity++;
-                        if (activeDensity <= densityReduce) {
-                            continue;
+                    else {
+                        spawnNames = [];
+                        this.spawnEntities = [];
+                        this.entity.children.forEach(function (entity) {
+                            if (spawnNames.indexOf(entity.name) === -1) {
+                                spawnNames.push(entity.name);
+                                this.spawnEntities.push(entity);
+                            }
+                        }.bind(this));
+                    }
+                    return [4 /*yield*/, this.loadModelAssets(this.spawnEntities)];
+                case 1:
+                    _a.sent();
+                    spawnEntities = this.spawnEntities;
+                    vec = this.vec;
+                    vec1 = this.vec1;
+                    vec2 = this.vec2;
+                    vec3 = this.vec3;
+                    quat = this.quat;
+                    matrix = this.matrix;
+                    // --- prepare the instancing payloads/cells per LOD level
+                    this.payloads = [[], [], [], []];
+                    this.cells = {};
+                    this.lodLevelsEnabled = [false, false, false, false];
+                    for (spawnIndex = 0; spawnIndex < this.spawnEntities.length; spawnIndex++) {
+                        spawnEntity = this.spawnEntities[spawnIndex];
+                        instances = this.filterInstances(spawnEntity, spawnIndex);
+                        lodEntities = [];
+                        if (spawnEntity.model) {
+                            lodEntities.push(spawnEntity);
                         }
-                        activeDensity = 0;
-                    }
-                    var instance = this.getInstanceData(instances[i], spawnEntities, true);
-                    instancesData.push(instance);
-                    if (this.densityIncrease > 0 && this.streamingFile) {
-                        for (j = 0; j < Math.floor(this.densityIncrease); j++) {
-                            var newPosition = this.getRandomPositionInRadius(instance.position, this.densityIncreaseRadius);
-                            var height = instance.position.y;
-                            var normal;
-                            // --- get elevation under the point
-                            if (this.densityIncreaseRaycast) {
-                                this.vec.set(newPosition.x, newPosition.y + 10000, newPosition.z);
-                                this.vec1.set(newPosition.x, newPosition.y - 10000, newPosition.z);
-                                var result = this.app.systems.rigidbody.raycastFirst(this.vec, this.vec1);
-                                if (result && result.entity.name.indexOf("Terrain") > -1) {
-                                    height = result.point.y;
-                                    normal = result.normal;
-                                }
-                                else {
+                        else {
+                            for (i = 0; i < spawnEntity.children.length; i++) {
+                                child = spawnEntity.children[i];
+                                if (!child.model)
                                     continue;
+                                // --- search for a LOD entity
+                                for (j = 0; j <= 3; j++) {
+                                    if (child.name.indexOf("_LOD" + j) > -1) {
+                                        lodEntities[j] = child;
+                                        break;
+                                    }
                                 }
                             }
-                            newPosition.y = height;
-                            // --- rotate or align them
-                            var angles = this.getBrushAngles(lodEntity, normal);
-                            // --- scale them up
-                            var scale = instance.scale;
-                            // --- position + offset
-                            var finalPosition = this.getBrushPosition(newPosition, scale);
-                            var newInstance = {
-                                name: instance.name,
-                                position: new pc.Vec3().copy(finalPosition),
-                                rotation: new pc.Quat().setFromEulerAngles(angles.x, angles.y, angles.z),
-                                scale: new pc.Vec3().copy(scale),
-                            };
-                            instancesData.push(newInstance);
+                        }
+                        // --- main instancing prepare loop to find all the relevant mesh instances
+                        for (lodIndex = 0; lodIndex < lodEntities.length; lodIndex++) {
+                            lodEntity = lodEntities[lodIndex];
+                            if (!lodEntity)
+                                continue;
+                            this.lodLevelsEnabled[lodIndex] = true;
+                            spawnScale = lodEntity.getLocalScale();
+                            for (meshInstanceIndex = 0; meshInstanceIndex < lodEntity.model.meshInstances.length; meshInstanceIndex++) {
+                                meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
+                                meshInstance.visible = false;
+                                // --- fix strange angles when using HW directly
+                                if (!this.spawnEntity) {
+                                    meshInstance.node.rotate(0, 90, 0);
+                                }
+                                meshRotation = meshInstance.node.getRotation();
+                                meshSphereRadius = meshInstance.aabb.halfExtents.length() * 2;
+                                payload = {
+                                    baseEntity: lodEntity,
+                                    instances: instances,
+                                    meshInstance: new pc.MeshInstance(meshInstance.node, meshInstance.mesh, meshInstance.material),
+                                    meshRotation: meshRotation,
+                                    matrices: [],
+                                    matricesPerCell: {},
+                                    totalBuffer: undefined,
+                                    totalMatrices: undefined,
+                                    vertexBuffer: undefined,
+                                };
+                                densityReduce = this.densityReduce;
+                                activeDensity = densityReduce;
+                                instancesData = [];
+                                for (i = 0; i < instances.length; i++) {
+                                    // --- check if we are reducing the density on build time
+                                    if (densityReduce > 0) {
+                                        activeDensity++;
+                                        if (activeDensity <= densityReduce) {
+                                            continue;
+                                        }
+                                        activeDensity = 0;
+                                    }
+                                    instance = this.getInstanceData(instances[i], spawnEntities, true);
+                                    instancesData.push(instance);
+                                    if (this.densityIncrease > 0 && this.streamingFile) {
+                                        for (j = 0; j < Math.floor(this.densityIncrease); j++) {
+                                            newPosition = this.getRandomPositionInRadius(instance.position, this.densityIncreaseRadius);
+                                            height = instance.position.y;
+                                            // --- get elevation under the point
+                                            if (this.densityIncreaseRaycast) {
+                                                this.vec.set(newPosition.x, newPosition.y + 10000, newPosition.z);
+                                                this.vec1.set(newPosition.x, newPosition.y - 10000, newPosition.z);
+                                                result = this.app.systems.rigidbody.raycastFirst(this.vec, this.vec1);
+                                                if (result && result.entity.name.indexOf("Terrain") > -1) {
+                                                    height = result.point.y;
+                                                    normal = result.normal;
+                                                }
+                                                else {
+                                                    continue;
+                                                }
+                                            }
+                                            newPosition.y = height;
+                                            angles = this.getBrushAngles(lodEntity, normal);
+                                            scale = instance.scale;
+                                            finalPosition = this.getBrushPosition(newPosition, scale);
+                                            newInstance = {
+                                                name: instance.name,
+                                                position: new pc.Vec3().copy(finalPosition),
+                                                rotation: new pc.Quat().setFromEulerAngles(angles.x, angles.y, angles.z),
+                                                scale: new pc.Vec3().copy(scale),
+                                            };
+                                            instancesData.push(newInstance);
+                                        }
+                                    }
+                                }
+                                // --- main prepare loop
+                                for (i = 0; i < instancesData.length; i++) {
+                                    instance = instancesData[i];
+                                    // --- disable model component if we have an entity and it exists
+                                    if (instance.entity && instance.entity.model) {
+                                        instance.entity.model.enabled = false;
+                                    }
+                                    // --- check if we are interested in this mesh instance
+                                    if (instance.name !== spawnEntity.name)
+                                        continue;
+                                    scale = this.getInstanceScale(vec2, instance, spawnScale);
+                                    matrix = this.getInstanceMatrix(new pc.Mat4(), quat, instance, instance.position, meshRotation, scale);
+                                    payload.matrices.push(matrix);
+                                    // --- create a bounding box for this instance
+                                    matrix.sphere = new pc.BoundingSphere(instance.position.clone(), meshSphereRadius);
+                                    cellPos = this.getCellPos(vec, instance.position);
+                                    cell = this.getVisibilityCell(cellPos);
+                                    matrix.cell = cell;
+                                    matrix.instanceEntity = instance.entity;
+                                    // --- add instance to per cell matrices list
+                                    if (!payload.matricesPerCell[cell.guid]) {
+                                        payload.matricesPerCell[cell.guid] = [];
+                                    }
+                                    payload.matricesPerCell[cell.guid].push(matrix);
+                                }
+                                // --- add payload to renderable list
+                                if (payload.matrices.length > 0) {
+                                    this.payloads[lodIndex].push(payload);
+                                }
+                            }
                         }
                     }
-                }
-                // --- main prepare loop
-                for (i = 0; i < instancesData.length; i++) {
-                    var instance = instancesData[i];
-                    // --- disable model component if we have an entity and it exists
-                    if (instance.entity && instance.entity.model) {
-                        instance.entity.model.enabled = false;
+                    // --- fill up buffers
+                    for (lodIndex = 0; lodIndex < this.payloads.length; lodIndex++) {
+                        lodPayloads = this.payloads[lodIndex];
+                        for (i = 0; i < lodPayloads.length; i++) {
+                            payload = lodPayloads[i];
+                            // --- prepare the instances buffers
+                            payload.totalBuffer = new ArrayBuffer(payload.matrices.length * 16 * 4);
+                            payload.culledMatrices = new Float32Array(payload.matrices.length * 16);
+                            payload.totalMatrices = new Float32Array(payload.totalBuffer, 0, payload.matrices.length * 16);
+                            totalMatrices = payload.totalMatrices;
+                            totalMatrixIndex = 0;
+                            startCellIndex = 0;
+                            endCellIndex = 0;
+                            // --- sort matrices per visibility cell
+                            for (cellGuid in payload.matricesPerCell) {
+                                matricesPerCell = payload.matricesPerCell[cellGuid];
+                                // --- populate matrices buffers
+                                for (j = 0; j < matricesPerCell.length; j++) {
+                                    for (m = 0; m < 16; m++) {
+                                        endCellIndex++;
+                                        totalMatrices[totalMatrixIndex] = matricesPerCell[j].data[m];
+                                        totalMatrixIndex++;
+                                    }
+                                }
+                                cellMatrices = new Float32Array(payload.totalBuffer, startCellIndex * 4, endCellIndex - startCellIndex);
+                                startCellIndex = endCellIndex;
+                                // --- replaces matrices references with the single cell typed array
+                                payload.matricesPerCell[cellGuid] = cellMatrices;
+                            }
+                            bufferArray = this.cullingCamera
+                                ? UranusEditorEntitiesPaint.zeroBuffer
+                                : payload.totalMatrices;
+                            payload.vertexBuffer = new pc.VertexBuffer(this.app.graphicsDevice, pc.VertexFormat.defaultInstancingFormat, this.cullingCamera ? 0 : bufferArray.length / 16, pc.BUFFER_STATIC, this.cullingCamera ? UranusEditorEntitiesPaint.zeroBuffer : bufferArray);
+                            meshInstance = payload.meshInstance;
+                            // --- enable instancing on the mesh instance
+                            meshInstance.material.onUpdateShader = function (options) {
+                                options.useInstancing = true;
+                                return options;
+                            };
+                            meshInstance.material.update();
+                            modelComponent = payload.baseEntity.model;
+                            meshInstance.castShadow =
+                                meshInstance.material.castShadows !== undefined
+                                    ? meshInstance.material.castShadows
+                                    : modelComponent.castShadows;
+                            meshInstance.receiveShadow =
+                                meshInstance.material.receiveShadows !== undefined
+                                    ? meshInstance.material.receiveShadows
+                                    : modelComponent.receiveShadows;
+                            meshInstance.cull = false;
+                            for (j = 0; j < modelComponent.layers.length; j++) {
+                                layerID = modelComponent.layers[j];
+                                layer = this.app.scene.layers.getLayerById(layerID);
+                                if (layer) {
+                                    layer.addMeshInstances([meshInstance]);
+                                }
+                            }
+                            meshInstance.setInstancing(payload.vertexBuffer);
+                        }
                     }
-                    // --- check if we are interested in this mesh instance
-                    if (instance.name !== spawnEntity.name)
-                        continue;
-                    var scale = this.getInstanceScale(vec2, instance, spawnScale);
-                    // var position = this.getInstancePosition(
-                    //   vec1,
-                    //   instance,
-                    //   offset,
-                    //   scale
-                    // );
-                    var matrix = this.getInstanceMatrix(new pc.Mat4(), quat, instance, instance.position, meshRotation, scale);
-                    payload.matrices.push(matrix);
-                    // --- create a bounding box for this instance
-                    matrix.sphere = new pc.BoundingSphere(instance.position.clone(), meshSphereRadius);
-                    // --- add instance to total matrices list
-                    var cellPos = this.getCellPos(vec, instance.position);
-                    var cell = this.getVisibilityCell(cellPos);
-                    matrix.cell = cell;
-                    matrix.instanceEntity = instance.entity;
-                    // --- add instance to per cell matrices list
-                    if (!payload.matricesPerCell[cell.guid]) {
-                        payload.matricesPerCell[cell.guid] = [];
-                    }
-                    payload.matricesPerCell[cell.guid].push(matrix);
-                }
-                // --- add payload to renderable list
-                if (payload.matrices.length > 0) {
-                    this.payloads[lodIndex].push(payload);
-                }
+                    return [2 /*return*/];
             }
-        }
-    }
-    // --- fill up buffers
-    for (var lodIndex = 0; lodIndex < this.payloads.length; lodIndex++) {
-        var lodPayloads = this.payloads[lodIndex];
-        for (i = 0; i < lodPayloads.length; i++) {
-            var payload = lodPayloads[i];
-            // --- prepare the instances buffers
-            payload.totalBuffer = new ArrayBuffer(payload.matrices.length * 16 * 4);
-            payload.culledMatrices = new Float32Array(payload.matrices.length * 16);
-            payload.totalMatrices = new Float32Array(payload.totalBuffer, 0, payload.matrices.length * 16);
-            var totalMatrices = payload.totalMatrices;
-            var totalMatrixIndex = 0;
-            var startCellIndex = 0;
-            var endCellIndex = 0;
-            // --- sort matrices per visibility cell
-            for (var cellGuid in payload.matricesPerCell) {
-                var matricesPerCell = payload.matricesPerCell[cellGuid];
-                // --- populate matrices buffers
-                for (var j = 0; j < matricesPerCell.length; j++) {
-                    for (var m = 0; m < 16; m++) {
-                        endCellIndex++;
-                        totalMatrices[totalMatrixIndex] = matricesPerCell[j].data[m];
-                        totalMatrixIndex++;
-                    }
-                }
-                var cellMatrices = new Float32Array(payload.totalBuffer, startCellIndex * 4, endCellIndex - startCellIndex);
-                startCellIndex = endCellIndex;
-                // --- replaces matrices references with the single cell typed array
-                payload.matricesPerCell[cellGuid] = cellMatrices;
-            }
-            // --- create payload vertex buffer
-            var bufferArray = this.cullingCamera
-                ? UranusEditorEntitiesPaint.zeroBuffer
-                : payload.totalMatrices;
-            payload.vertexBuffer = new pc.VertexBuffer(this.app.graphicsDevice, pc.VertexFormat.defaultInstancingFormat, this.cullingCamera ? 0 : bufferArray.length / 16, pc.BUFFER_STATIC, this.cullingCamera ? UranusEditorEntitiesPaint.zeroBuffer : bufferArray);
-            var meshInstance = payload.meshInstance;
-            // --- enable instancing on the mesh instance
-            meshInstance.material.onUpdateShader = function (options) {
-                options.useInstancing = true;
-                return options;
-            };
-            meshInstance.material.update();
-            // --- add mesh instance to render lists
-            var modelComponent = payload.baseEntity.model;
-            meshInstance.castShadow =
-                meshInstance.material.castShadows !== undefined
-                    ? meshInstance.material.castShadows
-                    : modelComponent.castShadows;
-            meshInstance.receiveShadow =
-                meshInstance.material.receiveShadows !== undefined
-                    ? meshInstance.material.receiveShadows
-                    : modelComponent.receiveShadows;
-            meshInstance.cull = false;
-            for (j = 0; j < modelComponent.layers.length; j++) {
-                var layerID = modelComponent.layers[j];
-                var layer = this.app.scene.layers.getLayerById(layerID);
-                if (layer) {
-                    layer.addMeshInstances([meshInstance]);
-                }
-            }
-            meshInstance.setInstancing(payload.vertexBuffer);
-        }
-    }
-    // console.log(this.entity.name, "instances", count);
+        });
+    });
 };
 UranusEditorEntitiesPaint.prototype.getMeshInstancePosOffset = function (offset, center, spawnPos, spawnScale) {
     offset.copy(center).sub(spawnPos);
@@ -4526,9 +4559,12 @@ UranusEditorEntitiesPaint.prototype.getCellPos = function (cell, pos) {
 UranusEditorEntitiesPaint.prototype.getCellGuid = function (cell) {
     return cell.x.toFixed(3) + "_" + cell.y.toFixed(3) + "_" + cell.z.toFixed(3);
 };
-UranusEditorEntitiesPaint.prototype.loadModelAssets = function () {
+UranusEditorEntitiesPaint.prototype.loadModelAssets = function (spawnEntities) {
     return new Promise(function (resolve) {
-        var modelComponents = this.spawnEntity.findComponents("model");
+        var modelComponents = [];
+        spawnEntities.forEach(function (spawnEntity) {
+            modelComponents = modelComponents.concat(spawnEntity.findComponents("model"));
+        }.bind(this));
         // --- assemble a list of all assets
         var assets = [];
         var asset;

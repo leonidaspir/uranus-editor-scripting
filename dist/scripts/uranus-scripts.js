@@ -3314,6 +3314,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     this.quat = new pc.Quat();
     this.matrix = new pc.Mat4();
     this.randomPosition = new pc.Vec3();
+    this.vecOne = new pc.Vec3(1, 1, 1);
     this.tempSphere = { center: null, radius: 0.5 };
     this.lodDistance = [
         this.lodLevels.x * this.lodLevels.x,
@@ -3983,7 +3984,9 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                             if (!lodEntity)
                                 continue;
                             this.lodLevelsEnabled[lodIndex] = true;
-                            spawnScale = lodEntity.getLocalScale();
+                            spawnScale = this.spawnEntity
+                                ? lodEntity.getLocalScale()
+                                : this.vecOne;
                             for (meshInstanceIndex = 0; meshInstanceIndex < lodEntity.model.meshInstances.length; meshInstanceIndex++) {
                                 meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
                                 meshInstance.visible = false;
@@ -3992,7 +3995,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                                 payload = {
                                     baseEntity: lodEntity,
                                     instances: instances,
-                                    meshInstance: new pc.MeshInstance(meshInstance.node.clone(), meshInstance.mesh, meshInstance.material),
+                                    meshInstance: new pc.MeshInstance(meshInstance.node, meshInstance.mesh, meshInstance.material),
                                     meshRotation: meshRotation,
                                     matrices: [],
                                     matricesPerCell: {},
@@ -4159,7 +4162,7 @@ UranusEditorEntitiesPaint.prototype.getInstancePosition = function (position, in
 };
 UranusEditorEntitiesPaint.prototype.getInstanceScale = function (scale, instance, spawnScale) {
     scale.copy(instance.scale).mul(spawnScale).scale(0.01);
-    return scale;
+    return scale.set(scale.x, scale.z, scale.y);
 };
 UranusEditorEntitiesPaint.prototype.getInstanceMatrix = function (matrix, quat, instance, position, rotation, scale) {
     // --- calculate angles
@@ -4205,6 +4208,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     var lodLevelsEnabled = this.lodLevelsEnabled;
     var lodThreshold = this.lodThreshold;
     var lodDistanceRaw = this.lodDistanceRaw;
+    var vecOne = this.vecOne;
     var i, j, lodIndex;
     var instanceData = this.instanceData;
     var vec1 = this.vec1;
@@ -4267,8 +4271,8 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
             var spawnScale, spawnPos, offset;
             if (isStatic === false) {
                 // --- get per payload references
-                spawnPos = lodEntity.getPosition();
-                spawnScale = lodEntity.getLocalScale();
+                // spawnPos = lodEntity.getPosition();
+                spawnScale = spawnEntity ? lodEntity.getLocalScale() : vecOne;
                 // --- calculate pivot offset
                 // offset = this.getMeshInstancePosOffset(
                 //   vec3,

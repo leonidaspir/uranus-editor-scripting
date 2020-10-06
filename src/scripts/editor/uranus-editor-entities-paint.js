@@ -211,6 +211,8 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
   this.matrix = new pc.Mat4();
   this.randomPosition = new pc.Vec3();
 
+  this.vecOne = new pc.Vec3(1, 1, 1);
+
   this.tempSphere = { center: null, radius: 0.5 };
 
   this.lodDistance = [
@@ -1115,8 +1117,10 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
       this.lodLevelsEnabled[lodIndex] = true;
 
       // --- get per payload references
-      // var spawnPos = lodEntity.getPosition();
-      var spawnScale = lodEntity.getLocalScale();
+      //var spawnPos = lodEntity.getPosition();
+      var spawnScale = this.spawnEntity
+        ? lodEntity.getLocalScale()
+        : this.vecOne;
 
       for (
         var meshInstanceIndex = 0;
@@ -1142,7 +1146,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
           baseEntity: lodEntity,
           instances: instances,
           meshInstance: new pc.MeshInstance(
-            meshInstance.node.clone(),
+            meshInstance.node,
             meshInstance.mesh,
             meshInstance.material
           ),
@@ -1433,7 +1437,7 @@ UranusEditorEntitiesPaint.prototype.getInstanceScale = function (
 ) {
   scale.copy(instance.scale).mul(spawnScale).scale(0.01);
 
-  return scale;
+  return scale.set(scale.x, scale.z, scale.y);
 };
 
 UranusEditorEntitiesPaint.prototype.getInstanceMatrix = function (
@@ -1498,6 +1502,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
   var lodLevelsEnabled = this.lodLevelsEnabled;
   var lodThreshold = this.lodThreshold;
   var lodDistanceRaw = this.lodDistanceRaw;
+  var vecOne = this.vecOne;
 
   var i, j, lodIndex;
 
@@ -1583,8 +1588,8 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
       if (isStatic === false) {
         // --- get per payload references
-        spawnPos = lodEntity.getPosition();
-        spawnScale = lodEntity.getLocalScale();
+        // spawnPos = lodEntity.getPosition();
+        spawnScale = spawnEntity ? lodEntity.getLocalScale() : vecOne;
 
         // --- calculate pivot offset
         // offset = this.getMeshInstancePosOffset(

@@ -1044,13 +1044,15 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
   } else {
     // --- use the children as spawn entities, names for instanced entities should be the same
     var spawnNames = [];
-    this.spawnEntities = [];
 
-    this.entity.children.forEach(
+    this.spawnEntities = this.entity.find(
       function (entity) {
-        if (spawnNames.indexOf(entity.name) === -1) {
+        if (
+          entity instanceof pc.Entity &&
+          spawnNames.indexOf(entity.name) === -1
+        ) {
           spawnNames.push(entity.name);
-          this.spawnEntities.push(entity);
+          return true;
         }
       }.bind(this)
     );
@@ -1124,16 +1126,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
         var meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
         meshInstance.visible = false;
 
-        // --- fix strange angles when using HW directly
-        var meshRotation;
-        if (!this.spawnEntity) {
-          meshInstance.node.rotate(0, 90, 0);
-          meshRotation = meshInstance.node.getRotation().clone();
-          meshInstance.node.rotate(0, -90, 0);
-        } else {
-          meshRotation = meshInstance.node.getRotation().clone();
-        }
-
+        var meshRotation = meshInstance.node.getLocalRotation().clone();
         var meshSphereRadius = meshInstance.aabb.halfExtents.length() * 2;
 
         // --- calculate pivot offset
@@ -1149,7 +1142,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
           baseEntity: lodEntity,
           instances: instances,
           meshInstance: new pc.MeshInstance(
-            meshInstance.node,
+            meshInstance.node.clone(),
             meshInstance.mesh,
             meshInstance.material
           ),

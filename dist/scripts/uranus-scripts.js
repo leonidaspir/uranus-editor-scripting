@@ -3934,11 +3934,11 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                     }
                     else {
                         spawnNames = [];
-                        this.spawnEntities = [];
-                        this.entity.children.forEach(function (entity) {
-                            if (spawnNames.indexOf(entity.name) === -1) {
+                        this.spawnEntities = this.entity.find(function (entity) {
+                            if (entity instanceof pc.Entity &&
+                                spawnNames.indexOf(entity.name) === -1) {
                                 spawnNames.push(entity.name);
-                                this.spawnEntities.push(entity);
+                                return true;
                             }
                         }.bind(this));
                     }
@@ -3987,19 +3987,12 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                             for (meshInstanceIndex = 0; meshInstanceIndex < lodEntity.model.meshInstances.length; meshInstanceIndex++) {
                                 meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
                                 meshInstance.visible = false;
-                                if (!this.spawnEntity) {
-                                    meshInstance.node.rotate(0, 90, 0);
-                                    meshRotation = meshInstance.node.getRotation().clone();
-                                    meshInstance.node.rotate(0, -90, 0);
-                                }
-                                else {
-                                    meshRotation = meshInstance.node.getRotation().clone();
-                                }
+                                meshRotation = meshInstance.node.getLocalRotation().clone();
                                 meshSphereRadius = meshInstance.aabb.halfExtents.length() * 2;
                                 payload = {
                                     baseEntity: lodEntity,
                                     instances: instances,
-                                    meshInstance: new pc.MeshInstance(meshInstance.node, meshInstance.mesh, meshInstance.material),
+                                    meshInstance: new pc.MeshInstance(meshInstance.node.clone(), meshInstance.mesh, meshInstance.material),
                                     meshRotation: meshRotation,
                                     matrices: [],
                                     matricesPerCell: {},

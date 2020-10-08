@@ -1,7 +1,7 @@
 // --- dependencies
 // msgpack.js
 // ----------------
-// https://community.khronos.org/t/how-can-i-make-far-objects-look-fading-or-transparent/71593/2
+// ToDo don't remove model component if not explicitely added
 var UranusEditorEntitiesPaint = pc.createScript("uranusEditorEntitiesPaint");
 
 UranusEditorEntitiesPaint.attributes.add("inEditor", {
@@ -351,14 +351,6 @@ UranusEditorEntitiesPaint.prototype.prepareComponentsToClear = function (
           this.componentsToClear.push(componentName);
         }.bind(this)
       );
-  }
-
-  // --- if HW instancing is enabled we automatically add model in the list, if it's not
-  if (
-    this.hardwareInstancing &&
-    this.componentsToClear.indexOf("model") === -1
-  ) {
-    this.componentsToClear.push("model");
   }
 };
 

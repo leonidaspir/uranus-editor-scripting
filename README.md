@@ -74,6 +74,8 @@ uranus-editor/src/loader/uranus-editor-loader.js
 uranus-editor/extension/
 ```
 
+![uranus-browser-extension](uranus-browser.jpg)
+
 The extension provides a simple toggle on/off button and it will automatically run the uranus editor loader after the editor has finished loading.
 
 ## API

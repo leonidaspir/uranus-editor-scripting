@@ -96,6 +96,8 @@ MyScript.prototype.editorInitialize = function () {
 
 As stated above this callback can be used for executing editor only code.
 
+---
+
 ```
 MyScript.prototype.editorAttrChange = function (property, value) {
    if( property === 'speed' ){
@@ -105,6 +107,8 @@ MyScript.prototype.editorAttrChange = function (property, value) {
 ```
 
 For listening to script attribute changes in editor we can't use the regular Playcanvas `'attr'` event. Instead add the `editorAttrChange` method to your script.
+
+---
 
 ```
 MyScript.prototype.editorScriptPanelRender = function(element) {
@@ -125,6 +129,8 @@ To add custom UI components below your script attributes in editor you can use t
 
 You can add any kind of HTML elements here, PCUI components or use a 3rd part library.
 
+---
+
 ```
 if (Uranus.Editor.inEditor() === false) {
     // any code will execute only outside of the editor
@@ -133,11 +139,15 @@ if (Uranus.Editor.inEditor() === false) {
 
 You can call this static method directly to check if the code is currently executing in editor or in launch/build contexts.
 
+---
+
 ```
 Uranus.Editor.editorPickerState(false);
 ```
 
 With this static method you can enable/disable the Playcanvas picker. This allows you to add your own mouse click handlers without deselecting the current entity (e.g. useful when raycasting).
+
+---
 
 ```
 Uranus.Editor.interface.logMessage(
@@ -146,6 +156,8 @@ Uranus.Editor.interface.logMessage(
 ```
 
 You can log temporary messages on top of the editor viewport using the `logMessage()` method. You can add regular HTML styling with your messages.
+
+---
 
 ```
 Uranus.Editor.duplicateEntities([bankItem], this.parentItem);
@@ -158,11 +170,15 @@ For more advanced uses you can use this method to clone any regular editor entit
 
 Note that all items passed have to be editor entity observables, not pc.Entity instances.
 
+---
+
 ```
 Uranus.Editor.runBatcher(listOfEntities);
 ```
 
 Batching in editor doesn't run automatically, though it helps a lot to have it execute in bigger scenes. To run the batcher at any point execute the method above passing a list of entities to have their model components batched.
+
+---
 
 ## How to interact with the editor?
 

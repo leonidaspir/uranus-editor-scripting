@@ -72,23 +72,24 @@ export default class Editor {
       this.app.systems.rigidbody.onLibraryLoaded();
 
       // --- add existing hierarchy to simulation
-      var rigidbodies: any = this.app.root.findComponents("rigidbody");
+      const rigidbodies: any = this.app.root.findComponents("rigidbody");
 
-      rigidbodies.forEach((rigidbody: any) => {
-        if (rigidbody.entity.collision) {
+      for (const rigidbody of rigidbodies) {
+        if (rigidbody.entity.enabled === true && rigidbody.type === pc.BODYTYPE_STATIC && rigidbody.entity.collision) {
+
           pc.RigidBodyComponent.prototype.constructor.call(
             rigidbody,
             rigidbody.system,
             rigidbody.entity
           );
 
-          var collision = rigidbody.entity.collision;
+          const collision = rigidbody.entity.collision;
           collision.system.recreatePhysicalShapes(collision);
 
           rigidbody.enabled = false;
           rigidbody.enabled = true;
         }
-      });
+      }
     }
 
     this.appRunning = startImmediately;

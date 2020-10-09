@@ -78,6 +78,12 @@ uranus-editor/extension/
 
 The extension provides a simple toggle on/off button and it will automatically run the uranus editor loader after the editor has finished loading.
 
+## Progress
+
+This framework is still considered an alpha release with many outstanding features in development.
+
+It has been used a lot in production though several stability issues remain. If you find yourself in any weird situation or your editor crashes the best solution usually is to reload the editor page.
+
 ## API
 
 There is a number of methods available, both to be added to your script type and that can be called directly.

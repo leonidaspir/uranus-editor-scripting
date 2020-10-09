@@ -176,7 +176,7 @@ editor.call("entities:get", guid);
 
 Make sure to avoid using the `editor` keyword for any variable declaration in your code, to not lose this reference.
 
-**Note that there isn't an official API and the editor methods are prone to changes until that is finalized. Keep regular checkpoints of your code in case you accidentally corrupt your scene or delete something.**
+**Note that there isn't an official Playcanvas editor API and the editor methods are prone to changes until that is finalized. Keep regular checkpoints of your code in case you accidentally corrupt your scene or delete something.**
 
 With this in mind a good starting place are the following forum threads:
 

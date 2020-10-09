@@ -4632,6 +4632,163 @@ UranusEffectAnimateMaterial.prototype.update = function (dt) {
     this.material[this.materialChannel].add(this.vec);
     this.material.update();
 };
+var UranusEffectGrassWind = pc.createScript('UranusEffectGrassWind');
+UranusEffectGrassWind.attributes.add("inEditor", {
+    type: "boolean",
+    default: true,
+    title: "In Editor",
+});
+UranusEffectGrassWind.attributes.add('materialAsset', { type: 'asset', assetType: 'material' });
+UranusEffectGrassWind.attributes.add('wavelength', { type: 'number', default: 1 });
+UranusEffectGrassWind.attributes.add('amplitude', { type: 'number', default: 0.05 });
+// initialize code called once per entity
+UranusEffectGrassWind.prototype.initialize = function () {
+    if (!this.materialAsset) {
+        return false;
+    }
+    var self = this;
+    this.timer = pc.math.random(0, 10);
+    this.materialAsset.ready(function () {
+        var m = self.materialAsset.resource;
+        self.material = m;
+        if (self.material.uranusEffectGrassWind === true) {
+            return;
+        }
+        self.material.uranusEffectGrassWind = true;
+        m.chunks.baseVS = '   attribute vec3 vertex_position;\n' +
+            '   attribute vec3 vertex_normal;\n' +
+            '   attribute vec4 vertex_tangent;\n' +
+            '   attribute vec2 vertex_texCoord0;\n' +
+            '   attribute vec2 vertex_texCoord1;\n' +
+            '   attribute vec4 vertex_color;\n' +
+            '   \n' +
+            '   uniform mat4 matrix_viewProjection;\n' +
+            '   uniform mat4 matrix_model;\n' +
+            '   uniform mat3 matrix_normal;\n' +
+            "   uniform float time;\n" +
+            "   uniform float amplitude;\n" +
+            "   uniform float wavelength;\n" +
+            '   \n' +
+            '   vec3 dPositionW;\n' +
+            '   mat4 dModelMatrix;\n' +
+            '   mat3 dNormalMatrix;\n' +
+            '   vec3 dLightPosW;\n' +
+            '   vec3 dLightDirNormW;\n' +
+            '  vec3 dNormalW;\n';
+        m.chunks.transformVS =
+            '   mat4 getModelMatrix() {\n' +
+                '       #ifdef DYNAMICBATCH\n' +
+                '       return getBoneMatrix(vertex_boneIndices);\n' +
+                '       #elif defined(SKIN)\n' +
+                '       return matrix_model * getSkinMatrix(vertex_boneIndices, vertex_boneWeights);\n' +
+                '       #elif defined(INSTANCING)\n' +
+                '       return mat4(instance_line1, instance_line2, instance_line3, instance_line4);\n' +
+                '       #else\n' +
+                '       return matrix_model;\n' +
+                '       #endif\n' +
+                '   }\n' +
+                '   vec4 getPosition() {\n' +
+                '       dModelMatrix = getModelMatrix();\n' +
+                '       vec3 localPos = vertex_position;\n' +
+                "localPos.xyz += sin((vertex_texCoord0.x + time + localPos.x + localPos.z) / wavelength) * amplitude * vertex_texCoord0.y;\n" +
+                '       vec4 posW = dModelMatrix * vec4(localPos, 1.0);\n' +
+                '       dPositionW = posW.xyz;\n' +
+                '   \n' +
+                '       vec4 screenPos;\n' +
+                '       screenPos = matrix_viewProjection * posW;\n' +
+                '       return screenPos;\n' +
+                '   }\n' +
+                '   vec3 getWorldPosition() {\n' +
+                '       return dPositionW;\n' +
+                '  }\n';
+        m.update();
+        self.updateAttributes();
+    });
+    this.app.assets.load(this.materialAsset);
+    this.on('attr', this.updateAttributes);
+};
+// update code called every frame
+UranusEffectGrassWind.prototype.update = function (dt) {
+    if (this.material) {
+        this.timer += dt;
+        this.material.setParameter('time', this.timer);
+    }
+};
+UranusEffectGrassWind.prototype.updateAttributes = function () {
+    this.material.setParameter('wavelength', this.wavelength);
+    this.material.setParameter('amplitude', this.amplitude);
+};
+var UranusEffectLodSwitch = pc.createScript('UranusEffectLodSwitch');
+UranusEffectLodSwitch.attributes.add("inEditor", {
+    type: "boolean",
+    default: true,
+    title: "In Editor",
+});
+UranusEffectLodSwitch.attributes.add('materialAsset', { type: 'asset', assetType: 'material' });
+UranusEffectLodSwitch.attributes.add('fadeThreshold', { type: 'number', default: 1.0, min: 0.0, title: 'Fade Threshold' });
+// initialize code called once per entity
+UranusEffectLodSwitch.prototype.initialize = function () {
+    if (!this.materialAsset) {
+        return false;
+    }
+    this.materialAsset.ready(this.onMaterialUpdate.bind(this));
+    this.materialAsset.on('change', this.onMaterialUpdate.bind(this));
+    this.app.assets.load(this.materialAsset);
+    this.on('attr', this.updateAttributes);
+};
+UranusEffectLodSwitch.prototype.onMaterialUpdate = function () {
+    var m = this.materialAsset.resource;
+    this.material = m;
+    m.chunks.alphaTestPS = "    uniform float alpha_ref;" +
+        "    uniform vec3 uranusViewPosition;" +
+        "    uniform float uranusFadeInDistance;" +
+        "    uniform float uranusFadeOutDistance;" +
+        "    uniform float fadeThreshold;" +
+        "    void alphaTest(float a) {" +
+        "        float distance = distance(uranusViewPosition, vPositionW);" +
+        "        float fadeFactor = alpha_ref;" +
+        "        if( distance > (uranusFadeOutDistance * (1.0 - fadeThreshold) ) ){" +
+        "            fadeFactor = clamp(distance / uranusFadeOutDistance, alpha_ref, 1.0);" +
+        "        }" +
+        "        if( distance < (uranusFadeInDistance * (1.0 - fadeThreshold) ) ){" +
+        "            fadeFactor = clamp(distance / uranusFadeInDistance, alpha_ref, 1.0);" +
+        "        }" +
+        "        if (a < fadeFactor) discard;" +
+        "    }";
+    m.update();
+    this.updateAttributes();
+};
+UranusEffectLodSwitch.prototype.updateAttributes = function () {
+    this.material.setParameter('fadeThreshold', this.fadeThreshold);
+};
+var UranusEffectMaterialOverrideShadows = pc.createScript('UranusEffectMaterialOverrideShadows');
+UranusEffectMaterialOverrideShadows.attributes.add("inEditor", {
+    type: "boolean",
+    default: true,
+    title: "In Editor",
+});
+UranusEffectMaterialOverrideShadows.attributes.add('materialAsset', { type: 'asset', assetType: 'material' });
+UranusEffectMaterialOverrideShadows.attributes.add("castShadows", {
+    type: "boolean",
+    default: true,
+    title: "Cast Shadows",
+});
+UranusEffectMaterialOverrideShadows.attributes.add("receiveShadows", {
+    type: "boolean",
+    default: true,
+    title: "Receive Shadows",
+});
+// initialize code called once per entity
+UranusEffectMaterialOverrideShadows.prototype.initialize = function () {
+    if (!this.materialAsset) {
+        return false;
+    }
+    this.materialAsset.ready(function () {
+        var material = this.materialAsset.resource;
+        material.castShadows = this.castShadows;
+        material.receiveShadows = this.receiveShadows;
+    }.bind(this));
+};
 var UranusEffectWater = pc.createScript("uranusEffectWater");
 UranusEffectWater.attributes.add("inEditor", {
     type: "boolean",
@@ -4999,6 +5156,155 @@ UranusEffectWater.prototype.getOpacityShader = function () {
 };
 UranusEffectWater.prototype.getTransformShader = function () {
     return "\n\n  uniform float timer;\n  uniform float waveVertexLength;\n  uniform float waveVertexAmplitude;\n\n  mat4 getModelMatrix() {\n      return matrix_model;\n  }\n  \n  vec4 getPosition() {\n      dModelMatrix = getModelMatrix();\n      vec3 localPos = vertex_position; \n  \n      vec4 posW = dModelMatrix * vec4(localPos, 1.0);\n      posW.y += cos( (posW.x + timer) /waveVertexLength ) * sin( (posW.z + timer) /waveVertexLength ) * waveVertexAmplitude;\n\n      dPositionW = posW.xyz;\n  \n      vec4 screenPos = matrix_viewProjection * posW;\n\n      return screenPos;\n  }\n  \n  vec3 getWorldPosition() {\n      return dPositionW;\n  }\n";
+};
+var UranusBillboardRenderer = pc.createScript('UranusBillboardRenderer');
+UranusBillboardRenderer.attributes.add('cameraEntity', { type: 'entity', title: 'Camera' });
+UranusBillboardRenderer.attributes.add('billboard', { type: 'entity', title: 'Billboard' });
+UranusBillboardRenderer.attributes.add('resolution', { type: 'vec2', default: [1024, 1024], placeholder: ['width', 'height'], title: 'Resolution' });
+UranusBillboardRenderer.attributes.add('crop', { type: 'boolean', default: true, title: 'Crop' });
+UranusBillboardRenderer.attributes.add('baseHeight', { type: 'boolean', default: true, title: 'Base Height' });
+// initialize code called once per entity
+UranusBillboardRenderer.prototype.initialize = function () {
+    // --- variables
+    this.vec = new pc.Vec3();
+    this.count = 0;
+    this.cameraEntity = this.cameraEntity ? this.cameraEntity : this.app.root.findByName('Camera');
+    this.billboard = this.billboard ? this.billboard : this.entity;
+    // --- prepare
+    this.canvas = document.getElementById('application-canvas');
+    this.trimCanvas = document.createElement('canvas');
+    this.resizeCanvas = document.createElement('canvas');
+    var linkElement = document.createElement('a');
+    linkElement.id = 'link';
+    window.document.body.appendChild(linkElement);
+    // --- events
+    this.app.keyboard.on(pc.EVENT_KEYUP, this.onKeyUp, this);
+};
+UranusBillboardRenderer.prototype.render = function () {
+    // --- find the aabb and try to center/fit the object in the camera view
+    this.aabb = new pc.BoundingBox();
+    this.buildAabb(this.aabb, this.billboard);
+    this.cameraEntity.camera.orthoHeight = this.aabb.halfExtents.y * 1.2;
+    var cameraPos = this.cameraEntity.getPosition();
+    this.cameraEntity.setPosition(cameraPos.x, this.aabb.center.y, cameraPos.z);
+    // --- save and download a screen grab
+    this.count++;
+    var filename;
+    if (this.billboard.model && this.billboard.model.asset) {
+        var asset = this.app.assets.get(this.billboard.model.asset);
+        filename = asset.name.split('.')[0] + '_billboard';
+    }
+    else {
+        filename = this.billboard.name + '_billboard';
+    }
+    window.setTimeout(function () {
+        this.takeScreenshot(filename);
+    }.bind(this), 100);
+};
+UranusBillboardRenderer.prototype.onKeyUp = function (event) {
+    if (event.key === pc.KEY_SPACE) {
+        this.render();
+    }
+};
+UranusBillboardRenderer.prototype.buildAabb = function (aabb, entity, modelsAdded) {
+    var i = 0;
+    if (entity.model) {
+        var mi = entity.model.meshInstances;
+        for (i = 0; i < mi.length; i++) {
+            if (modelsAdded === 0) {
+                aabb.copy(mi[i].aabb);
+            }
+            else {
+                aabb.add(mi[i].aabb);
+            }
+            modelsAdded += 1;
+        }
+    }
+    for (i = 0; i < entity.children.length; ++i) {
+        modelsAdded += this.buildAabb(aabb, entity.children[i], modelsAdded);
+    }
+    return modelsAdded;
+};
+UranusBillboardRenderer.prototype.takeScreenshot = function (filename) {
+    var image = this.canvas.toDataURL('image/png');
+    if (this.crop) {
+        this.trimImage(image).then(function (base64) {
+            this.downloadImage(filename, base64);
+        }.bind(this));
+    }
+    else {
+        this.downloadImage(filename, image);
+    }
+};
+UranusBillboardRenderer.prototype.downloadImage = function (filename, image) {
+    var link = document.getElementById('link');
+    link.setAttribute('download', filename + '.png');
+    link.setAttribute('href', image.replace("image/png", "image/octet-stream"));
+    link.click();
+};
+UranusBillboardRenderer.prototype.trimImage = function (base64) {
+    return new Promise(function (resolve) {
+        this.trimCanvas.width = this.canvas.width;
+        this.trimCanvas.height = this.canvas.height;
+        var ctx = this.trimCanvas.getContext('2d');
+        var img = new Image();
+        img.onload = function () {
+            ctx.drawImage(img, 0, 0, this.trimCanvas.width, this.trimCanvas.height);
+            var pixels = ctx.getImageData(0, 0, this.trimCanvas.width, this.trimCanvas.height);
+            var l = pixels.data.length, i, bound = {
+                top: null,
+                left: null,
+                right: null,
+                bottom: null
+            }, x, y;
+            // Iterate over every pixel to find the highest
+            // and where it ends on every axis ()
+            for (i = 0; i < l; i += 4) {
+                if (pixels.data[i + 3] !== 0) {
+                    x = (i / 4) % this.trimCanvas.width;
+                    y = ~~((i / 4) / this.trimCanvas.width);
+                    if (bound.top === null) {
+                        bound.top = y;
+                    }
+                    if (bound.left === null) {
+                        bound.left = x;
+                    }
+                    else if (x < bound.left) {
+                        bound.left = x;
+                    }
+                    if (bound.right === null) {
+                        bound.right = x;
+                    }
+                    else if (bound.right < x) {
+                        bound.right = x;
+                    }
+                    if (bound.bottom === null) {
+                        bound.bottom = y;
+                    }
+                    else if (bound.bottom < y) {
+                        bound.bottom = y;
+                    }
+                }
+            }
+            var trimHeight = bound.bottom - bound.top, trimWidth = bound.right - bound.left, trimmed = ctx.getImageData(bound.left, bound.top, trimWidth, trimHeight);
+            if (this.resolution.x === 0 && this.resolution.y === 0) {
+                this.trimCanvas.width = trimWidth;
+                this.trimCanvas.height = trimHeight;
+                ctx.putImageData(trimmed, 0, 0);
+                resolve(this.trimCanvas.toDataURL('image/png'));
+            }
+            else {
+                this.trimCanvas.width = this.baseHeight ? trimHeight : trimWidth;
+                this.trimCanvas.height = this.baseHeight ? trimHeight : trimWidth;
+                ctx.putImageData(trimmed, this.baseHeight ? (this.trimCanvas.width - trimWidth) / 2 : 0, this.baseHeight ? 0 : (this.trimCanvas.height - trimHeight) / 2);
+                this.resizeCanvas.width = this.resolution.x;
+                this.resizeCanvas.height = this.resolution.y;
+                this.resizeCanvas.getContext('2d').drawImage(this.trimCanvas, 0, 0, this.trimCanvas.width, this.trimCanvas.height, 0, 0, this.resizeCanvas.width, this.resizeCanvas.height);
+                resolve(this.resizeCanvas.toDataURL('image/png'));
+            }
+        }.bind(this);
+        img.src = base64;
+    }.bind(this));
 };
 var UranusHelperEntityPicker = pc.createScript("uranusHelperEntityPicker");
 UranusHelperEntityPicker.attributes.add("camera", {

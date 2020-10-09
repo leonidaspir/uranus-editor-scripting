@@ -198,7 +198,7 @@ uranus-editor/src/scripts/
 
 Note that some scripts have dependencies listed on the top of the source file, so make sure to grab them from the `_libraries` folder.
 
-## Example Project
+## Uranus Demo Project
 
 An example Playcanvas project that has been developed using the Uranus Editor Scripting SDK has been made public here:
 

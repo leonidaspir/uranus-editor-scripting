@@ -198,7 +198,7 @@ All scripts can be found bundled in the following file to be uploaded to any Pla
 uranus-editor/dist/sdk/uranus-scripts.js
 ```
 
-If you would like to use only specific scripts you can grab them individually from the following folder:
+If you would like to use specific scripts you can grab them individually from the following folder:
 
 ```
 uranus-editor/src/scripts/

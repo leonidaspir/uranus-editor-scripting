@@ -86,7 +86,7 @@ It has been used a lot in production though several stability issues remain. If 
 
 ## API
 
-There is a number of methods available, both to be added to your script type and that can be called directly.
+There is a number of methods available, both to be added to your script type and to be called directly.
 
 ```
 MyScript.prototype.editorInitialize = function () {

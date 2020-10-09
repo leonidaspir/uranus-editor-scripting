@@ -1,3 +1,4 @@
+// This script is a work in progress, not ready for production
 // ToDo handle deletion
 // ToDo check if we can do undo-ing in a single step
 var UranusEditorBlockBuilder = pc.createScript("uranusEditorBlockBuilder");

@@ -1,7 +1,9 @@
-
+/**
+  A small, fast and advanced PNG / APNG encoder and decoder.
+  https://github.com/photopea/UPNG.js/
+  This code is MIT licensed.
+**/
 var UPNG = {};
-
-	
 
 UPNG.toRGBA8 = function(out)
 {

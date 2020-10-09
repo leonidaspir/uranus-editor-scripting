@@ -1,6 +1,6 @@
 # Uranus Editor Scripting for Playcanvas
 
-Uranus Editor Scripting is a framework that extends the scripting system of the Playcanvas game engine to work inside the Playcanvas editor.
+Uranus Editor Scripting is a framework that extends the scripting system of the [Playcanvas](https://playcanvas.com/) game engine to work inside the Playcanvas editor.
 
 Building on top of the easiness of coding in the Playcanvas platform, any existing script can be easily extended to both execute in editor and run editor only code.
 

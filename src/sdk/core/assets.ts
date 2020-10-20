@@ -49,6 +49,11 @@ export async function loadEditorScriptAssets(
   for (const scriptType of scriptTypes) {
     const item = editor.call("assets:scripts:assetByScript", scriptType);
 
+    if (item === null) {
+      console.warn(`No item found for scriptType: ${scriptType}`);
+      continue;
+    }
+
     const asset = this.app.assets.get(item.get("id"));
     asset.unload();
 

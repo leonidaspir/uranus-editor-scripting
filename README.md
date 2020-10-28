@@ -72,7 +72,7 @@ That isn't so convenient in the long term.
 
 2. You can install the [Playing In Canvas](https://pic.pirron-rodon.one/) Chrome extension and easily enable/disable Uranus Editor Scripting in any Playcanvas project:
 
-![uranus-browser-extension](pic-extension.jpg)
+![uranus-browser-extension](pic-browser-extension.jpg)
 
 3. There is also a cross-browser developer extension included in the current repository that works on Chrome, Firefox and Edge. To install it enable the developer mode in your browser and add it from the following folder:
 

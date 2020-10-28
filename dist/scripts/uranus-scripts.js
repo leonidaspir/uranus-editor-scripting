@@ -1,3 +1,8 @@
+/**
+  A small, fast and advanced PNG / APNG encoder and decoder.
+  https://github.com/photopea/UPNG.js/
+  This code is MIT licensed.
+**/
 var UPNG = {};
 UPNG.toRGBA8 = function (out) {
     var w = out.width, h = out.height;
@@ -1761,6 +1766,11 @@ var Bezier = function (t) { function r(i) { if (n[i])
                 "z" === e && (m += "Z ", x = c, l = h); return m.trim(); }
         t.exports = n;
     }]);
+/**
+  This is a JavaScript/ECMA-262 implementation of MessagePack, an efficient binary serilization format.
+  https://github.com/msgpack/msgpack-javascript
+  This code is MIT licensed.
+**/
 !function (t) { if ("object" == typeof exports && "undefined" != typeof module)
     module.exports = t();
 else if ("function" == typeof define && define.amd)
@@ -2357,6 +2367,7 @@ else {
                 t[r++] = 255 & e, e /= 256; } function y(t, r, e) { var n = r + 8; for (e++; r < n;)
                 t[r++] = 255 & -e ^ 255, e /= 256; } function v(t) { return !!t && "[object Array]" == Object.prototype.toString.call(t); } var g, b = "undefined", w = b !== typeof Buffer && Buffer, E = b !== typeof Uint8Array && Uint8Array, A = b !== typeof ArrayBuffer && ArrayBuffer, m = [0, 0, 0, 0, 0, 0, 0, 0], x = Array.isArray || v, B = 4294967296, U = 16777216; t = o("Uint64BE", !0, !0), r = o("Int64BE", !0, !1), n = o("Uint64LE", !1, !0), i = o("Int64LE", !1, !1); }("object" == typeof e && "string" != typeof e.nodeName ? e : this || {}); }).call(this, t("buffer").Buffer); }, { buffer: 29 }], 34: [function (t, r, e) { var n = {}.toString; r.exports = Array.isArray || function (t) { return "[object Array]" == n.call(t); }; }, {}] }, {}, [1])(1);
 });
+// This script is a work in progress, not ready for production
 // ToDo handle deletion
 // ToDo check if we can do undo-ing in a single step
 var UranusEditorBlockBuilder = pc.createScript("uranusEditorBlockBuilder");

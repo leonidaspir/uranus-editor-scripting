@@ -60,7 +60,7 @@ The Uranus Editor SDK is bundled in a single .js file which you have to upload t
 uranus-editor/dist/sdk/uranus-editor-sdk.js
 ```
 
-There are two ways to initialize the Uranus Editor SDK:
+There are three ways to initialize the Uranus Editor SDK:
 
 1. The simplest one is to copy/paste in the browser console at your active editor tab the code found in the following loader file:
 
@@ -68,7 +68,13 @@ There are two ways to initialize the Uranus Editor SDK:
 uranus-editor/src/loader/uranus-editor-loader.js
 ```
 
-2. That isn't so convenient, so a cross-browser extension is provided that works on Chrome, Firefox and Edge. To install it enable the developer mode in your browser and add it from the following folder:
+That isn't so convenient in the long term.
+
+2. You can install the [Playing In Canvas](https://pic.pirron-rodon.one/) Chrome extension and easily enable/disable Uranus Editor Scripting in any Playcanvas project:
+
+![uranus-browser-extension](pic-extension.jpg)
+
+3. There is also a cross-browser developer extension included in the current repository that works on Chrome, Firefox and Edge. To install it enable the developer mode in your browser and add it from the following folder:
 
 ```
 uranus-editor/extension/

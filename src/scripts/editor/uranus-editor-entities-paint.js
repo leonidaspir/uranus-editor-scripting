@@ -1389,7 +1389,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
     }
   }
 
-  // console.log(this.entity.name, "instances", count);
+  // console.log(this.entity.name, this.payloads);
 };
 
 UranusEditorEntitiesPaint.prototype.getMeshInstancePosOffset = function (

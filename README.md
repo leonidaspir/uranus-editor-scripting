@@ -12,7 +12,7 @@ The goal of this project is to fill the gab of editor scripting in Playcanvas un
 
 - Create custom editor tools that can easily interact and write to your scene entity hierarchy and create/update/delete assets on demand (e.g. procedural world generation, world painting tools, nav mesh generation etc.).
 - Run runtime code in editor to easily visualize and work on your final view of your scene (e.g. shader effects, runtime generated models like terrains from heightmaps).
-- Write importers/exporters to easily import or export content from your Playcanvas project (e.g. export a Playcanvas level to further model and re-import in an external modeling application).
+- Write importers/exporters to easily import or export content from your Playcanvas project (e.g. export a Playcanvas level to further model in an external modeling application and re-import).
 
 ![uranus-editing](uranis-editing.gif)
 
@@ -22,9 +22,9 @@ The Playcanvas editor already runs a light instance of a pc.Application. The Ura
 
 1. Load any required modules, right now that would be Ammo.js to enable in editor physics execution.
 
-2. Start the physics simulation and add all scene rigidbodies (static).
+2. Start the physics simulation and add all static rigidbodies to the simulation.
 
-3. Start the main app loop update. Normally the editor executes the main render loop only when there is interaction with the viewport.
+3. Start the main app loop update to run continuously. Normally the editor executes the main render loop only when there is interaction with the viewport.
 
 4. Preload all assets that have their preload flag enabled.
 
@@ -42,9 +42,9 @@ MyScript.attributes.add("inEditor", {
 });
 ```
 
-When the editor loads it searchs for any script that contains the `inEditor` attributes, adds it to the pc.Application scripts registry and executes it. Much like it would execute when launching the project.
+When the editor loads the uranus sdk searches for any script that contains the `inEditor` attribute, adds it to the pc.Application scripts registry and executes it. Much like it would execute when launching the project.
 
-If you would like to execute code in editor only you can use a special callback for that:
+If you would like to execute code only in the editor you can use a special callback for that:
 
 ```
 MyScript.prototype.editorInitialize = function () {

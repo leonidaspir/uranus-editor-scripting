@@ -1,6 +1,4 @@
-var UranusTerrainGenerateHeightmap = pc.createScript(
-  "uranusTerrainGenerateHeightmap"
-);
+var UranusTerrainGenerateHeightmap = pc.createScript("uranusTerrainGenerateHeightmap");
 
 UranusTerrainGenerateHeightmap.attributes.add("inEditor", {
   type: "boolean",
@@ -51,8 +49,7 @@ UranusTerrainGenerateHeightmap.attributes.add("material", {
 
 UranusTerrainGenerateHeightmap.attributes.add("modelLayers", {
   type: "string",
-  description:
-    "A comma separated list of layers to be added to the terrain model",
+  description: "A comma separated list of layers to be added to the terrain model",
 });
 
 UranusTerrainGenerateHeightmap.attributes.add("eventInit", {
@@ -87,9 +84,7 @@ UranusTerrainGenerateHeightmap.prototype.init = function () {
     return false;
   }
 
-  this.loadTerrainAssets([this.material].concat(this.heightMap)).then(
-    this.createTerrain.bind(this)
-  );
+  this.loadTerrainAssets([this.material].concat(this.heightMap)).then(this.createTerrain.bind(this));
 };
 
 UranusTerrainGenerateHeightmap.prototype.findGridHeightmaps = function () {
@@ -139,10 +134,7 @@ UranusTerrainGenerateHeightmap.prototype.createTerrain = function () {
         this.gridVertexData[x] = [];
       }
 
-      var vertexData = this.prepareTerrainFromHeightMap(
-        heightmap,
-        this.subdivisions
-      );
+      var vertexData = this.prepareTerrainFromHeightMap(heightmap, this.subdivisions);
       heightmapAsset.unload();
 
       this.gridVertexData[x][y] = vertexData;
@@ -165,21 +157,19 @@ UranusTerrainGenerateHeightmap.prototype.createTerrain = function () {
 
       var chunkEntity = this.addModelToComponent(model, x, y);
 
-      chunkEntity.translate(
-        this.width / 2 + x * this.width,
-        0,
-        this.depth / 2 + y * this.depth
-      );
+      chunkEntity.translate(this.width / 2 + x * this.width, 0, this.depth / 2 + y * this.depth);
     }
   }
+
+  // --- to trick the physics engine to add the bodies in the sim
+  this.entity.enabled = false;
+  this.entity.enabled = true;
 
   // --- fire a custom app wide event that the terrain surface is ready
   this.app.fire(this.eventReady, this.entity);
 };
 
-UranusTerrainGenerateHeightmap.prototype.createTerrainVertexData = function (
-  options
-) {
+UranusTerrainGenerateHeightmap.prototype.createTerrainVertexData = function (options) {
   var positions = [];
   var uvs = [];
   var indices = [];
@@ -187,21 +177,10 @@ UranusTerrainGenerateHeightmap.prototype.createTerrainVertexData = function (
 
   for (row = 0; row <= options.subdivisions; row++) {
     for (col = 0; col <= options.subdivisions; col++) {
-      var position = new pc.Vec3(
-        (col * options.width) / options.subdivisions - options.width / 2.0,
-        0,
-        ((options.subdivisions - row) * options.height) / options.subdivisions -
-          options.height / 2.0
-      );
+      var position = new pc.Vec3((col * options.width) / options.subdivisions - options.width / 2.0, 0, ((options.subdivisions - row) * options.height) / options.subdivisions - options.height / 2.0);
 
-      var heightMapX =
-        (((position.x + options.width / 2) / options.width) *
-          (options.bufferWidth - 1)) |
-        0;
-      var heightMapY =
-        ((1.0 - (position.z + options.height / 2) / options.height) *
-          (options.bufferHeight - 1)) |
-        0;
+      var heightMapX = (((position.x + options.width / 2) / options.width) * (options.bufferWidth - 1)) | 0;
+      var heightMapY = ((1.0 - (position.z + options.height / 2) / options.height) * (options.bufferHeight - 1)) | 0;
 
       var pos = (heightMapX + heightMapY * options.bufferWidth) * 4;
       var r = options.buffer[pos] / 255.0;
@@ -210,8 +189,7 @@ UranusTerrainGenerateHeightmap.prototype.createTerrainVertexData = function (
 
       var gradient = r * 0.3 + g * 0.59 + b * 0.11;
 
-      position.y =
-        options.minHeight + (options.maxHeight - options.minHeight) * gradient;
+      position.y = options.minHeight + (options.maxHeight - options.minHeight) * gradient;
 
       positions.push(position.x, position.y, position.z);
       uvs.push(col / options.subdivisions, 1.0 - row / options.subdivisions);
@@ -240,11 +218,7 @@ UranusTerrainGenerateHeightmap.prototype.createTerrainVertexData = function (
   };
 };
 
-UranusTerrainGenerateHeightmap.prototype.calculateNormalsBorders = function (
-  x,
-  y,
-  subdivisions
-) {
+UranusTerrainGenerateHeightmap.prototype.calculateNormalsBorders = function (x, y, subdivisions) {
   var i, b;
   var vec = this.vec;
   var normals = this.gridVertexData[x][y].normals;
@@ -271,10 +245,7 @@ UranusTerrainGenerateHeightmap.prototype.calculateNormalsBorders = function (
     }
   }
 
-  if (
-    this.gridVertexData[x + 1] !== undefined &&
-    this.gridVertexData[x + 1][y] !== undefined
-  ) {
+  if (this.gridVertexData[x + 1] !== undefined && this.gridVertexData[x + 1][y] !== undefined) {
     for (var index = 0; index <= subdivisions; index++) {
       i = index * (subdivisions + 1) + subdivisions;
       b = index * (subdivisions + 1);
@@ -298,10 +269,7 @@ UranusTerrainGenerateHeightmap.prototype.calculateNormalsBorders = function (
   }
 };
 
-UranusTerrainGenerateHeightmap.prototype.prepareTerrainFromHeightMap = function (
-  img,
-  subdivisions
-) {
+UranusTerrainGenerateHeightmap.prototype.prepareTerrainFromHeightMap = function (img, subdivisions) {
   var bufferWidth = img.width;
   var bufferHeight = img.height;
   this.canvas.width = bufferWidth;
@@ -324,9 +292,7 @@ UranusTerrainGenerateHeightmap.prototype.prepareTerrainFromHeightMap = function 
   return vertexData;
 };
 
-UranusTerrainGenerateHeightmap.prototype.createTerrainFromVertexData = function (
-  vertexData
-) {
+UranusTerrainGenerateHeightmap.prototype.createTerrainFromVertexData = function (vertexData) {
   var node = new pc.GraphNode();
 
   var material = this.material.resource;
@@ -346,11 +312,7 @@ UranusTerrainGenerateHeightmap.prototype.createTerrainFromVertexData = function 
   return model;
 };
 
-UranusTerrainGenerateHeightmap.prototype.addModelToComponent = function (
-  renderModel,
-  coordX,
-  coordY
-) {
+UranusTerrainGenerateHeightmap.prototype.addModelToComponent = function (renderModel, coordX, coordY) {
   var chunkEntity = new pc.Entity();
   chunkEntity.name = "Tile_" + coordX + "_" + coordY;
   this.entity.addChild(chunkEntity);
@@ -388,9 +350,7 @@ UranusTerrainGenerateHeightmap.prototype.addModelToComponent = function (
 
     chunkEntity.addComponent("rigidbody", {
       friction: this.entity.rigidbody ? this.entity.rigidbody.friction : 0.5,
-      restitution: this.entity.rigidbody
-        ? this.entity.rigidbody.restitution
-        : 0.5,
+      restitution: this.entity.rigidbody ? this.entity.rigidbody.restitution : 0.5,
       type: "static",
     });
   }

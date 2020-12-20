@@ -157,7 +157,9 @@ UranusTerrainGenerateHeightmap.prototype.createTerrain = function () {
 
       var chunkEntity = this.addModelToComponent(model, x, y);
 
-      chunkEntity.translate(this.width / 2 + x * this.width, 0, this.depth / 2 + y * this.depth);
+      if (this.gridSize.length > 1) {
+        chunkEntity.translate(this.width / 2 + x * this.width, 0, this.depth / 2 + y * this.depth);
+      }
     }
   }
 

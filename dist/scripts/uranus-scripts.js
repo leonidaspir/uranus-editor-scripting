@@ -5983,6 +5983,7 @@ UranusTerrainGenerateHeightmap.attributes.add("inEditor", {
 UranusTerrainGenerateHeightmap.attributes.add("heightMap", {
     type: "asset",
     assetType: "texture",
+    array: true,
 });
 UranusTerrainGenerateHeightmap.attributes.add("minHeight", {
     type: "number",
@@ -6012,42 +6013,101 @@ UranusTerrainGenerateHeightmap.attributes.add("material", {
     type: "asset",
     assetType: "material",
 });
+UranusTerrainGenerateHeightmap.attributes.add("modelLayers", {
+    type: "string",
+    description: "A comma separated list of layers to be added to the terrain model",
+});
+UranusTerrainGenerateHeightmap.attributes.add("eventInit", {
+    type: "string",
+});
+UranusTerrainGenerateHeightmap.attributes.add("eventReady", {
+    type: "string",
+    default: "uranusTerrain:surface:ready",
+});
 // initialize code called once per entity
 UranusTerrainGenerateHeightmap.prototype.initialize = function () {
-    this.heightMap.ready(this.createTerrain.bind(this));
-    this.app.assets.load(this.heightMap);
+    // --- variables
+    this.vec = new pc.Vec3();
+    this.canvas = document.createElement("canvas");
+    this.context = this.canvas.getContext("2d");
+    this.gridSize = undefined;
+    this.gridVertexData = undefined;
+    // --- check when to execute, directly or after a custom event is fired
+    if (this.eventInit) {
+        this.app.on(this.eventInit, this.init, this);
+    }
+    else {
+        this.init();
+    }
+};
+UranusTerrainGenerateHeightmap.prototype.init = function () {
+    // --- check if we've already initialized the terrain
+    if (this.gridVertexData) {
+        return false;
+    }
+    this.loadTerrainAssets([this.material].concat(this.heightMap)).then(this.createTerrain.bind(this));
+};
+UranusTerrainGenerateHeightmap.prototype.findGridHeightmaps = function () {
+    var allHeightmaps = this.heightMap;
+    var gridHeightmaps = [];
+    this.gridSize = Math.floor(Math.sqrt(this.heightMap.length));
+    var index = 0;
+    for (var x = 0; x < this.gridSize; x++) {
+        for (var y = 0; y < this.gridSize; y++) {
+            var heightmap = allHeightmaps[index];
+            if (!gridHeightmaps[x]) {
+                gridHeightmaps[x] = [];
+            }
+            gridHeightmaps[x][y] = heightmap;
+            index++;
+        }
+    }
+    return gridHeightmaps;
 };
 UranusTerrainGenerateHeightmap.prototype.createTerrain = function () {
-    var img = this.heightMap.resource.getSource();
-    var renderModel = this.createTerrainFromHeightMap(img, this.subdivisions).then(function (renderModel) {
-        var layers = [this.app.scene.layers.getLayerByName("World").id];
-        // --- check if we have a waves layer
-        var layerWaves = this.app.scene.layers.getLayerByName("WaveSources");
-        if (layerWaves) {
-            layers.push(layerWaves.id);
+    // --- check if we've already initialized the terrain
+    if (this.gridVertexData) {
+        return false;
+    }
+    var x, y;
+    // --- sort all heightmaps on a 2D grid
+    var gridHeightmaps = this.findGridHeightmaps();
+    // --- prepare the terrain vertex data
+    this.gridVertexData = [];
+    for (x = 0; x < this.gridSize; x++) {
+        for (y = 0; y < this.gridSize; y++) {
+            var heightmapAsset = gridHeightmaps[x][y];
+            var heightmap = heightmapAsset.resource.getSource();
+            if (!this.gridVertexData[x]) {
+                this.gridVertexData[x] = [];
+            }
+            var vertexData = this.prepareTerrainFromHeightMap(heightmap, this.subdivisions);
+            heightmapAsset.unload();
+            this.gridVertexData[x][y] = vertexData;
         }
-        this.entity.addComponent("model", {
-            layers: layers,
-            castShadows: true,
-            receiveShadows: true,
-        });
-        this.entity.model.model = renderModel;
-        this.app.fire("water:render");
-        this.app.fire("splatmaps:render");
-        if (this.addCollision) {
-            this.entity.addComponent("collision", {
-                type: "mesh",
-            });
-            this.entity.collision.model = renderModel;
-            this.entity.addComponent("rigidbody", {
-                friction: 0.5,
-                type: "static",
-            });
+    }
+    // --- fix the border normals now that we have all neighbor data
+    for (x = 0; x < this.gridSize; x++) {
+        for (y = 0; y < this.gridSize; y++) {
+            this.calculateNormalsBorders(x, y, this.subdivisions);
         }
-        // --- unload assets
-        this.heightMap.unload();
-        this.app.fire("terrain:ready");
-    }.bind(this));
+    }
+    // --- create the final tile model for each chunk
+    for (x = 0; x < this.gridSize; x++) {
+        for (y = 0; y < this.gridSize; y++) {
+            var vertexData = this.gridVertexData[x][y];
+            var model = this.createTerrainFromVertexData(vertexData);
+            var chunkEntity = this.addModelToComponent(model, x, y);
+            if (this.gridSize.length > 1) {
+                chunkEntity.translate(this.width / 2 + x * this.width, 0, this.depth / 2 + y * this.depth);
+            }
+        }
+    }
+    // --- to trick the physics engine to add the bodies in the sim
+    this.entity.enabled = false;
+    this.entity.enabled = true;
+    // --- fire a custom app wide event that the terrain surface is ready
+    this.app.fire(this.eventReady, this.entity);
 };
 UranusTerrainGenerateHeightmap.prototype.createTerrainVertexData = function (options) {
     var positions = [];
@@ -6056,21 +6116,15 @@ UranusTerrainGenerateHeightmap.prototype.createTerrainVertexData = function (opt
     var row, col;
     for (row = 0; row <= options.subdivisions; row++) {
         for (col = 0; col <= options.subdivisions; col++) {
-            var position = new pc.Vec3((col * options.width) / options.subdivisions - options.width / 2.0, 0, ((options.subdivisions - row) * options.height) / options.subdivisions -
-                options.height / 2.0);
-            var heightMapX = (((position.x + options.width / 2) / options.width) *
-                (options.bufferWidth - 1)) |
-                0;
-            var heightMapY = ((1.0 - (position.z + options.height / 2) / options.height) *
-                (options.bufferHeight - 1)) |
-                0;
+            var position = new pc.Vec3((col * options.width) / options.subdivisions - options.width / 2.0, 0, ((options.subdivisions - row) * options.height) / options.subdivisions - options.height / 2.0);
+            var heightMapX = (((position.x + options.width / 2) / options.width) * (options.bufferWidth - 1)) | 0;
+            var heightMapY = ((1.0 - (position.z + options.height / 2) / options.height) * (options.bufferHeight - 1)) | 0;
             var pos = (heightMapX + heightMapY * options.bufferWidth) * 4;
             var r = options.buffer[pos] / 255.0;
             var g = options.buffer[pos + 1] / 255.0;
             var b = options.buffer[pos + 2] / 255.0;
             var gradient = r * 0.3 + g * 0.59 + b * 0.11;
-            position.y =
-                options.minHeight + (options.maxHeight - options.minHeight) * gradient;
+            position.y = options.minHeight + (options.maxHeight - options.minHeight) * gradient;
             positions.push(position.x, position.y, position.z);
             uvs.push(col / options.subdivisions, 1.0 - row / options.subdivisions);
         }
@@ -6093,41 +6147,125 @@ UranusTerrainGenerateHeightmap.prototype.createTerrainVertexData = function (opt
         uvs: uvs,
     };
 };
-UranusTerrainGenerateHeightmap.prototype.createTerrainFromHeightMap = function (img, subdivisions) {
-    return new Promise(function (resolve) {
-        var canvas = document.createElement("canvas");
-        var context = canvas.getContext("2d");
-        var bufferWidth = img.width;
-        var bufferHeight = img.height;
-        canvas.width = bufferWidth;
-        canvas.height = bufferHeight;
-        context.drawImage(img, 0, 0);
-        var buffer = context.getImageData(0, 0, bufferWidth, bufferHeight).data;
-        var vertexData = this.createTerrainVertexData({
-            width: this.width,
-            height: this.depth,
-            subdivisions: subdivisions,
-            minHeight: this.minHeight,
-            maxHeight: this.maxHeight,
-            buffer: buffer,
-            bufferWidth: bufferWidth,
-            bufferHeight: bufferHeight,
+UranusTerrainGenerateHeightmap.prototype.calculateNormalsBorders = function (x, y, subdivisions) {
+    var i, b;
+    var vec = this.vec;
+    var normals = this.gridVertexData[x][y].normals;
+    if (this.gridVertexData[x][y + 1] !== undefined) {
+        for (i = 0; i <= subdivisions; i++) {
+            b = i + subdivisions * (subdivisions + 1);
+            vec.set(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+            vec.x += this.gridVertexData[x][y + 1].normals[b * 3];
+            vec.y += this.gridVertexData[x][y + 1].normals[b * 3 + 1];
+            vec.z += this.gridVertexData[x][y + 1].normals[b * 3 + 2];
+            vec.normalize();
+            normals[i * 3] = vec.x;
+            normals[i * 3 + 1] = vec.y;
+            normals[i * 3 + 2] = vec.z;
+            this.gridVertexData[x][y + 1].normals[b * 3] = vec.x;
+            this.gridVertexData[x][y + 1].normals[b * 3 + 1] = vec.y;
+            this.gridVertexData[x][y + 1].normals[b * 3 + 2] = vec.z;
+        }
+    }
+    if (this.gridVertexData[x + 1] !== undefined && this.gridVertexData[x + 1][y] !== undefined) {
+        for (var index = 0; index <= subdivisions; index++) {
+            i = index * (subdivisions + 1) + subdivisions;
+            b = index * (subdivisions + 1);
+            vec.set(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+            vec.x += this.gridVertexData[x + 1][y].normals[b * 3];
+            vec.y += this.gridVertexData[x + 1][y].normals[b * 3 + 1];
+            vec.z += this.gridVertexData[x + 1][y].normals[b * 3 + 2];
+            vec.normalize();
+            normals[i * 3] = vec.x;
+            normals[i * 3 + 1] = vec.y;
+            normals[i * 3 + 2] = vec.z;
+            this.gridVertexData[x + 1][y].normals[b * 3] = vec.x;
+            this.gridVertexData[x + 1][y].normals[b * 3 + 1] = vec.y;
+            this.gridVertexData[x + 1][y].normals[b * 3 + 2] = vec.z;
+        }
+    }
+};
+UranusTerrainGenerateHeightmap.prototype.prepareTerrainFromHeightMap = function (img, subdivisions) {
+    var bufferWidth = img.width;
+    var bufferHeight = img.height;
+    this.canvas.width = bufferWidth;
+    this.canvas.height = bufferHeight;
+    this.context.drawImage(img, 0, 0);
+    var buffer = this.context.getImageData(0, 0, bufferWidth, bufferHeight).data;
+    var vertexData = this.createTerrainVertexData({
+        width: this.width,
+        height: this.depth,
+        subdivisions: subdivisions,
+        minHeight: this.minHeight,
+        maxHeight: this.maxHeight,
+        buffer: buffer,
+        bufferWidth: bufferWidth,
+        bufferHeight: bufferHeight,
+    });
+    return vertexData;
+};
+UranusTerrainGenerateHeightmap.prototype.createTerrainFromVertexData = function (vertexData) {
+    var node = new pc.GraphNode();
+    var material = this.material.resource;
+    var mesh = pc.createMesh(this.app.graphicsDevice, vertexData.positions, {
+        normals: vertexData.normals,
+        uvs: vertexData.uvs,
+        indices: vertexData.indices,
+    });
+    var meshInstance = new pc.MeshInstance(node, mesh, material);
+    var model = new pc.Model();
+    model.graph = node;
+    model.meshInstances.push(meshInstance);
+    return model;
+};
+UranusTerrainGenerateHeightmap.prototype.addModelToComponent = function (renderModel, coordX, coordY) {
+    var chunkEntity = new pc.Entity();
+    chunkEntity.name = "Tile_" + coordX + "_" + coordY;
+    this.entity.addChild(chunkEntity);
+    var layers = [this.app.scene.layers.getLayerByName("World").id];
+    // --- check if we've been passed additional layers
+    var customLayers = this.modelLayers.split(",");
+    customLayers.forEach(function (customLayerName) {
+        if (customLayerName) {
+            // --- check if layer exists
+            var layer = this.app.scene.layers.getLayerByName(customLayerName);
+            if (layer) {
+                layers.push(layer.id);
+            }
+        }
+    }.bind(this));
+    chunkEntity.addComponent("model", {
+        layers: layers,
+        castShadows: false,
+        receiveShadows: true,
+    });
+    chunkEntity.model.model = renderModel;
+    if (this.addCollision) {
+        chunkEntity.addComponent("collision", {
+            type: "mesh",
         });
-        var node = new pc.GraphNode();
-        this.material.ready(function () {
-            var material = this.material.resource;
-            var mesh = pc.createMesh(this.app.graphicsDevice, vertexData.positions, {
-                normals: vertexData.normals,
-                uvs: vertexData.uvs,
-                indices: vertexData.indices,
+        chunkEntity.collision.model = renderModel;
+        chunkEntity.addComponent("rigidbody", {
+            friction: this.entity.rigidbody ? this.entity.rigidbody.friction : 0.5,
+            restitution: this.entity.rigidbody ? this.entity.rigidbody.restitution : 0.5,
+            type: "static",
+        });
+    }
+    return chunkEntity;
+};
+UranusTerrainGenerateHeightmap.prototype.loadTerrainAssets = function (assets) {
+    return new Promise(function (resolve) {
+        // --- load the assets
+        var count = 0;
+        assets.forEach(function (assetToLoad) {
+            assetToLoad.ready(function () {
+                count++;
+                if (count === assets.length) {
+                    resolve();
+                }
             });
-            var meshInstance = new pc.MeshInstance(node, mesh, material);
-            var model = new pc.Model();
-            model.graph = node;
-            model.meshInstances.push(meshInstance);
-            resolve(model);
+            this.app.assets.load(assetToLoad);
         }.bind(this));
-        this.app.assets.load(this.material);
     }.bind(this));
 };
 var UranusTerrainSplatmaps = pc.createScript("uranusTerrainSplatmaps");
@@ -6136,14 +6274,21 @@ UranusTerrainSplatmaps.attributes.add("inEditor", {
     default: true,
     title: "In Editor",
 });
+UranusTerrainSplatmaps.attributes.add("colorMaps", {
+    type: "asset",
+    array: true,
+    assetType: "texture",
+    title: "Color Maps",
+});
+UranusTerrainSplatmaps.attributes.add("occlusionMaps", {
+    type: "asset",
+    array: true,
+    assetType: "texture",
+    title: "Occlusion Maps",
+});
 UranusTerrainSplatmaps.attributes.add("materialAsset", {
     type: "asset",
     assetType: "material",
-});
-UranusTerrainSplatmaps.attributes.add("colormap", {
-    type: "asset",
-    assetType: "texture",
-    title: "Colormap",
 });
 UranusTerrainSplatmaps.attributes.add("textureChannel0", {
     type: "asset",
@@ -6169,60 +6314,180 @@ UranusTerrainSplatmaps.attributes.add("textureChannel3", {
     title: "Textures Channel 4",
     description: "Reference a material containing diffuse and optionally a normal and/or heightmap for the given channel.",
 });
-UranusTerrainSplatmaps.attributes.add("useAlpha", {
-    type: "boolean",
-    default: true,
-});
 UranusTerrainSplatmaps.attributes.add("tiling", {
     type: "number",
     default: 1,
 });
+UranusTerrainSplatmaps.attributes.add("eventInit", {
+    type: "string",
+});
+UranusTerrainSplatmaps.attributes.add("eventReady", {
+    type: "string",
+    default: "uranusTerrain:splatmaps:ready",
+});
 // initialize code called once per entity
 UranusTerrainSplatmaps.prototype.initialize = function () {
-    this.app.on("splatmaps:render", this.render, this);
-    this.on("attr", this.onAttrUpdate, this);
-    this.on("destroy", this.onDestroy, this);
+    // --- variables
+    this.uranusTerrain = undefined;
+    this.gridSize = undefined;
+    // --- check when to execute, directly or after a custom event is fired
+    if (this.eventInit) {
+        this.app.on(this.eventInit, this.init, this);
+    }
+    this.on("attr", this.render, this);
 };
-UranusTerrainSplatmaps.prototype.onAttrUpdate = function (property, state) {
-    this.updateUniforms();
-};
-UranusTerrainSplatmaps.prototype.onDestroy = function () {
-    this.app.off("splatmaps:render", this.render, this);
+UranusTerrainSplatmaps.prototype.init = function (terrainEntity) {
+    this.uranusTerrain = terrainEntity && terrainEntity.script && terrainEntity.script.uranusTerrainGenerateHeightmap ? terrainEntity.script.uranusTerrainGenerateHeightmap : null;
+    this.loadTerrainAssets([this.materialAsset].concat(this.colorMaps).concat(this.occlusionMaps)).then(function () {
+        // --- check if we are using the
+        this.useAlpha = this.textureChannel3 !== null;
+        this.useNormalMap = false;
+        this.useDiffuseMap = false;
+        this.useParallaxMap = false;
+        // --- prepare the material
+        var material = this.materialAsset.resource;
+        this.material = material;
+        // --- add the shader overrides per material channel
+        material.chunks.basePS = this.getBaseShader();
+        var colormapReady = false;
+        if (material.heightMap) {
+            material.chunks.parallaxPS = this.getParallaxShader(colormapReady === false);
+            colormapReady = true;
+            this.useParallaxMap = true;
+        }
+        if (material.normalMap) {
+            material.chunks.normalMapPS = this.getNormalShader(colormapReady === false);
+            colormapReady = true;
+            this.useNormalMap = true;
+        }
+        if (material.diffuseMap) {
+            material.chunks.diffusePS = this.getDiffuseShader(colormapReady === false, this.occlusionMaps.length > 0);
+            colormapReady = true;
+            this.useDiffuseMap = true;
+        }
+        material.update();
+        this.render();
+        // --- fire a custom app wide event that the terrain surface is ready
+        this.app.fire(this.eventReady, this.entity);
+    }.bind(this));
 };
 UranusTerrainSplatmaps.prototype.render = function () {
-    var material = this.materialAsset.resource;
-    this.material = material;
-    material.chunks.diffusePS = this.getSplatmapDiffuseShader(this.useAlpha);
-    material.update();
-    this.updateUniforms();
-};
-UranusTerrainSplatmaps.prototype.updateUniforms = function () {
-    this.material.setParameter("texture_colorMap", this.colormap.resource);
-    this.material.setParameter("texture_channel0", this.textureChannel0.resource.diffuseMap);
-    this.material.setParameter("texture_channel1", this.textureChannel1.resource.diffuseMap);
-    this.material.setParameter("texture_channel2", this.textureChannel2.resource.diffuseMap);
-    if (this.useAlpha) {
-        this.material.setParameter("texture_channel3", this.textureChannel3.resource.diffuseMap);
+    var allColormaps = this.colorMaps;
+    var allOcclusionmaps = this.occlusionMaps;
+    this.gridSize = this.uranusTerrain.gridSize;
+    var index = 0;
+    for (var x = 0; x < this.gridSize; x++) {
+        for (var y = 0; y < this.gridSize; y++) {
+            var colormap = allColormaps[index];
+            var occlusionmap = allOcclusionmaps[index];
+            var chunkEntity = this.entity.findByName("Tile_" + x + "_" + y);
+            this.updateUniforms(chunkEntity.model.meshInstances[0], colormap.resource, occlusionmap ? occlusionmap.resource : null);
+            index++;
+        }
     }
-    this.material.setParameter("tile", this.tiling);
 };
-UranusTerrainSplatmaps.prototype.getSplatmapDiffuseShader = function (useAlpha) {
-    return ("   uniform sampler2D texture_colorMap;" +
-        "   uniform float tile;" +
-        "   uniform sampler2D texture_channel0;" +
-        "   uniform sampler2D texture_channel1;" +
-        "   uniform sampler2D texture_channel2;" +
-        "   uniform sampler2D texture_channel3;" +
-        "   void getAlbedo() {" +
-        "       vec4 colormap = texture2D(texture_colorMap, vUv0);" +
-        "       vec3 texel0 = texture2D(texture_channel0, vUv0 * tile).rgb;" +
-        "       vec3 texel1 = texture2D(texture_channel1, vUv0 * tile).rgb;" +
-        "       vec3 texel2 = texture2D(texture_channel2, vUv0 * tile).rgb;" +
-        (useAlpha
-            ? "       vec3 texel3 = texture2D(texture_channel3, vUv0 * tile).rgb;"
-            : "") +
-        "       dAlbedo = gammaCorrectInput(colormap.r * texel0 + colormap.g * texel1 + colormap.b * texel2 " +
-        (useAlpha ? "+ colormap.a * texel3" : "") +
-        ");" +
-        "  }");
+UranusTerrainSplatmaps.prototype.updateUniforms = function (meshInstance, colormap, occlusionmap) {
+    meshInstance.setParameter("texture_colorMap", colormap);
+    if (this.useParallaxMap) {
+        meshInstance.setParameter("heightMap_channel0", this.textureChannel0.resource.heightMap);
+        meshInstance.setParameter("heightMap_channel1", this.textureChannel1.resource.heightMap);
+        meshInstance.setParameter("heightMap_channel2", this.textureChannel2.resource.heightMap);
+        if (this.useAlpha) {
+            meshInstance.setParameter("heightMap_channel3", this.textureChannel3.resource.heightMap);
+        }
+    }
+    if (this.useNormalMap) {
+        meshInstance.setParameter("normalMap_channel0", this.textureChannel0.resource.normalMap);
+        meshInstance.setParameter("normalMap_channel1", this.textureChannel1.resource.normalMap);
+        meshInstance.setParameter("normalMap_channel2", this.textureChannel2.resource.normalMap);
+        if (this.useAlpha) {
+            meshInstance.setParameter("normalMap_channel3", this.textureChannel3.resource.normalMap);
+        }
+    }
+    if (this.useDiffuseMap) {
+        meshInstance.setParameter("texture_channel0", this.textureChannel0.resource.diffuseMap);
+        meshInstance.setParameter("texture_channel1", this.textureChannel1.resource.diffuseMap);
+        meshInstance.setParameter("texture_channel2", this.textureChannel2.resource.diffuseMap);
+        if (this.useAlpha) {
+            meshInstance.setParameter("texture_channel3", this.textureChannel3.resource.diffuseMap);
+        }
+        if (occlusionmap) {
+            meshInstance.setParameter("texture_occlusion", occlusionmap);
+        }
+    }
+    meshInstance.setParameter("terrain_tile", this.tiling);
+};
+UranusTerrainSplatmaps.prototype.getBaseShader = function () {
+    return "uniform sampler2D texture_colorMap;\n" + "vec4 colormap;\n" + "uniform float terrain_tile;\n" + "uniform vec3 view_position;\n" + "uniform vec3 light_globalAmbient;\n" + "float square(float x) {\n" + "   return x*x;\n" + "}\n" + "float saturate(float x) {\n" + "   return clamp(x, 0.0, 1.0);\n" + "}\n" + "vec3 saturate(vec3 x) {\n" + "   return clamp(x, vec3(0.0), vec3(1.0));\n" + "}\n";
+};
+UranusTerrainSplatmaps.prototype.getDiffuseShader = function (calcColormap, useOcclusion) {
+    return ("   uniform sampler2D texture_channel0;\n" +
+        "   uniform sampler2D texture_channel1;\n" +
+        "   uniform sampler2D texture_channel2;\n" +
+        "   uniform sampler2D texture_channel3;\n" +
+        (useOcclusion ? "   uniform sampler2D texture_occlusion;\n" : "") +
+        "   void getAlbedo() {\n" +
+        (calcColormap ? "       colormap = texture2D(texture_colorMap, $UV);\n" : "") +
+        "     vec3 texel0 = texture2D(texture_channel0, vUv0 * terrain_tile).rgb;\n" +
+        "     vec3 texel1 = texture2D(texture_channel1, vUv0 * terrain_tile).rgb;\n" +
+        "     vec3 texel2 = texture2D(texture_channel2, vUv0 * terrain_tile).rgb;\n" +
+        (this.useAlpha ? " vec3 texel3 = texture2D(texture_channel3, vUv0 * terrain_tile).rgb\n;" : "") +
+        "     dAlbedo = gammaCorrectInput(addAlbedoDetail(colormap.r * texel0 + colormap.g * texel1 + colormap.b * texel2 " +
+        (this.useAlpha ? "+ colormap.a * texel3" : "") +
+        "));\n" +
+        (useOcclusion ? "   vec3 occlusion = texture2D( texture_occlusion, vUv0).rgb;\ndAlbedo *= occlusion;\n" : "") +
+        "  }\n");
+};
+UranusTerrainSplatmaps.prototype.getNormalShader = function (calcColormap) {
+    return (" uniform sampler2D normalMap_channel0;\n" +
+        " uniform sampler2D normalMap_channel1;\n" +
+        " uniform sampler2D normalMap_channel2;\n" +
+        " uniform sampler2D normalMap_channel3;\n" +
+        " uniform float material_bumpiness;\n" +
+        " void getNormal() {\n" +
+        (calcColormap ? "   colormap = texture2D(texture_colorMap, vUv0);\n" : "") +
+        "   vec3 texel0 = unpackNormal(texture2D(normalMap_channel0, vUv0  * terrain_tile + dUvOffset));\n" +
+        "   vec3 texel1 = unpackNormal(texture2D(normalMap_channel1, vUv0  * terrain_tile + dUvOffset));\n" +
+        "   vec3 texel2 = unpackNormal(texture2D(normalMap_channel2, vUv0  * terrain_tile + dUvOffset));\n" +
+        "   vec3 texel3 = unpackNormal(texture2D(normalMap_channel3, vUv0  * terrain_tile + dUvOffset));\n" +
+        "   vec3 normalMap = colormap.r * texel0 + colormap.g * texel1 + colormap.b * texel2 + colormap.a * texel3;\n" +
+        "   dNormalMap = addNormalDetail(normalMap);\n" +
+        "   normalMap = mix(vec3(0.0, 0.0, 1.0), normalMap, material_bumpiness);\n" +
+        "   dNormalW = dTBN * normalMap;\n" +
+        "}\n");
+};
+UranusTerrainSplatmaps.prototype.getParallaxShader = function (calcColormap) {
+    return (" uniform sampler2D heightMap_channel0;\n" +
+        " uniform sampler2D heightMap_channel1;\n" +
+        " uniform sampler2D heightMap_channel2;\n" +
+        " uniform sampler2D heightMap_channel3;\n" +
+        " uniform float material_heightMapFactor;\n" +
+        " void getParallax() {\n" +
+        "   float parallaxScale = material_heightMapFactor;\n" +
+        (calcColormap ? "   colormap = texture2D(texture_colorMap, vUv0);\n" : "") +
+        "   float texel0 = texture2D(heightMap_channel0, vUv0  * terrain_tile).$CH;\n" +
+        "   float texel1 = texture2D(heightMap_channel1, vUv0  * terrain_tile).$CH;\n" +
+        "   float texel2 = texture2D(heightMap_channel2, vUv0  * terrain_tile).$CH;\n" +
+        "   float texel3 = texture2D(heightMap_channel3, vUv0  * terrain_tile).$CH;\n" +
+        "   float height = colormap.r * texel0 + colormap.g * texel1 + colormap.b * texel2 + colormap.a * texel3;\n" +
+        "   height = height * parallaxScale - parallaxScale*0.5;\n" +
+        "   vec3 viewDirT = dViewDirW * dTBN;\n" +
+        "   viewDirT.z += 0.42;\n" +
+        "   dUvOffset = height * (viewDirT.xy / viewDirT.z);\n" +
+        "}\n");
+};
+UranusTerrainSplatmaps.prototype.loadTerrainAssets = function (assets) {
+    return new Promise(function (resolve) {
+        // --- load the assets
+        var count = 0;
+        assets.forEach(function (assetToLoad) {
+            assetToLoad.ready(function () {
+                count++;
+                if (count === assets.length) {
+                    resolve();
+                }
+            });
+            this.app.assets.load(assetToLoad);
+        }.bind(this));
+    }.bind(this));
 };

@@ -5985,6 +5985,11 @@ UranusTerrainGenerateHeightmap.attributes.add("heightMap", {
     assetType: "texture",
     array: true,
 });
+UranusTerrainGenerateHeightmap.attributes.add("subGridSize", {
+    type: "number",
+    default: 1,
+    enum: [{ "1x1": 1 }, { "2x2": 2 }, { "3x3": 3 }, { "4x4": 4 }],
+});
 UranusTerrainGenerateHeightmap.attributes.add("minHeight", {
     type: "number",
     default: 0,
@@ -6024,6 +6029,7 @@ UranusTerrainGenerateHeightmap.attributes.add("eventReady", {
     type: "string",
     default: "uranusTerrain:surface:ready",
 });
+//https://gamedev.stackexchange.com/questions/45938/apply-portion-of-texture-atlas
 // initialize code called once per entity
 UranusTerrainGenerateHeightmap.prototype.initialize = function () {
     // --- variables
@@ -6069,7 +6075,7 @@ UranusTerrainGenerateHeightmap.prototype.createTerrain = function () {
     if (this.gridVertexData) {
         return false;
     }
-    var x, y;
+    var x, y, xa, ya;
     // --- sort all heightmaps on a 2D grid
     var gridHeightmaps = this.findGridHeightmaps();
     // --- prepare the terrain vertex data
@@ -6078,29 +6084,44 @@ UranusTerrainGenerateHeightmap.prototype.createTerrain = function () {
         for (y = 0; y < this.gridSize; y++) {
             var heightmapAsset = gridHeightmaps[x][y];
             var heightmap = heightmapAsset.resource.getSource();
-            if (!this.gridVertexData[x]) {
-                this.gridVertexData[x] = [];
+            var bufferWidth = heightmap.width;
+            var bufferHeight = heightmap.height;
+            this.canvas.width = bufferWidth;
+            this.canvas.height = bufferHeight;
+            this.context.drawImage(heightmap, 0, 0);
+            var subGridVertexData = [];
+            for (xa = 0; xa < this.subGridSize; xa++) {
+                for (ya = 0; ya < this.subGridSize; ya++) {
+                    var totalX = x + xa;
+                    var totalY = y + ya;
+                    if (!this.gridVertexData[totalX]) {
+                        this.gridVertexData[totalX] = [];
+                    }
+                    if (!subGridVertexData[xa]) {
+                        subGridVertexData[xa] = [];
+                    }
+                    var vertexData = this.prepareTerrainFromHeightMap(totalX, totalY, subGridVertexData);
+                    this.gridVertexData[totalX][totalY] = vertexData;
+                    subGridVertexData[xa][ya] = vertexData;
+                }
             }
-            var vertexData = this.prepareTerrainFromHeightMap(heightmap, this.subdivisions);
             heightmapAsset.unload();
-            this.gridVertexData[x][y] = vertexData;
         }
     }
+    var totalGridSize = this.gridSize * this.subGridSize;
     // --- fix the border normals now that we have all neighbor data
-    for (x = 0; x < this.gridSize; x++) {
-        for (y = 0; y < this.gridSize; y++) {
+    for (x = 0; x < totalGridSize; x++) {
+        for (y = 0; y < totalGridSize; y++) {
             this.calculateNormalsBorders(x, y, this.subdivisions);
         }
     }
     // --- create the final tile model for each chunk
-    for (x = 0; x < this.gridSize; x++) {
-        for (y = 0; y < this.gridSize; y++) {
+    for (x = 0; x < totalGridSize; x++) {
+        for (y = 0; y < totalGridSize; y++) {
             var vertexData = this.gridVertexData[x][y];
             var model = this.createTerrainFromVertexData(vertexData);
             var chunkEntity = this.addModelToComponent(model, x, y);
-            if (this.gridSize.length > 1) {
-                chunkEntity.translate(this.width / 2 + x * this.width, 0, this.depth / 2 + y * this.depth);
-            }
+            chunkEntity.setPosition(x * this.width, 0, (totalGridSize - y - 1) * this.depth);
         }
     }
     // --- to trick the physics engine to add the bodies in the sim
@@ -6114,6 +6135,8 @@ UranusTerrainGenerateHeightmap.prototype.createTerrainVertexData = function (opt
     var uvs = [];
     var indices = [];
     var row, col;
+    var lastRow = [];
+    var lastCol = [];
     for (row = 0; row <= options.subdivisions; row++) {
         for (col = 0; col <= options.subdivisions; col++) {
             var position = new pc.Vec3((col * options.width) / options.subdivisions - options.width / 2.0, 0, ((options.subdivisions - row) * options.height) / options.subdivisions - options.height / 2.0);
@@ -6145,6 +6168,8 @@ UranusTerrainGenerateHeightmap.prototype.createTerrainVertexData = function (opt
         positions: positions,
         normals: normals,
         uvs: uvs,
+        lastCol: lastCol,
+        lastRow: lastRow,
     };
 };
 UranusTerrainGenerateHeightmap.prototype.calculateNormalsBorders = function (x, y, subdivisions) {
@@ -6154,17 +6179,17 @@ UranusTerrainGenerateHeightmap.prototype.calculateNormalsBorders = function (x, 
     if (this.gridVertexData[x][y + 1] !== undefined) {
         for (i = 0; i <= subdivisions; i++) {
             b = i + subdivisions * (subdivisions + 1);
-            vec.set(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
-            vec.x += this.gridVertexData[x][y + 1].normals[b * 3];
-            vec.y += this.gridVertexData[x][y + 1].normals[b * 3 + 1];
-            vec.z += this.gridVertexData[x][y + 1].normals[b * 3 + 2];
+            vec.set(normals[b * 3], normals[b * 3 + 1], normals[b * 3 + 2]);
+            vec.x += this.gridVertexData[x][y + 1].normals[i * 3];
+            vec.y += this.gridVertexData[x][y + 1].normals[i * 3 + 1];
+            vec.z += this.gridVertexData[x][y + 1].normals[i * 3 + 2];
             vec.normalize();
-            normals[i * 3] = vec.x;
-            normals[i * 3 + 1] = vec.y;
-            normals[i * 3 + 2] = vec.z;
-            this.gridVertexData[x][y + 1].normals[b * 3] = vec.x;
-            this.gridVertexData[x][y + 1].normals[b * 3 + 1] = vec.y;
-            this.gridVertexData[x][y + 1].normals[b * 3 + 2] = vec.z;
+            normals[b * 3] = vec.x;
+            normals[b * 3 + 1] = vec.y;
+            normals[b * 3 + 2] = vec.z;
+            this.gridVertexData[x][y + 1].normals[i * 3] = vec.x;
+            this.gridVertexData[x][y + 1].normals[i * 3 + 1] = vec.y;
+            this.gridVertexData[x][y + 1].normals[i * 3 + 2] = vec.z;
         }
     }
     if (this.gridVertexData[x + 1] !== undefined && this.gridVertexData[x + 1][y] !== undefined) {
@@ -6185,23 +6210,48 @@ UranusTerrainGenerateHeightmap.prototype.calculateNormalsBorders = function (x, 
         }
     }
 };
-UranusTerrainGenerateHeightmap.prototype.prepareTerrainFromHeightMap = function (img, subdivisions) {
-    var bufferWidth = img.width;
-    var bufferHeight = img.height;
-    this.canvas.width = bufferWidth;
-    this.canvas.height = bufferHeight;
-    this.context.drawImage(img, 0, 0);
-    var buffer = this.context.getImageData(0, 0, bufferWidth, bufferHeight).data;
+UranusTerrainGenerateHeightmap.prototype.prepareTerrainFromHeightMap = function (cellX, cellY, subGridVertexData) {
+    var totalWidth = this.canvas.width;
+    var totalHeight = this.canvas.height;
+    var cellWidth = totalWidth / this.subGridSize;
+    var cellHeight = totalHeight / this.subGridSize;
+    var startX = cellWidth * cellX;
+    var startY = cellHeight * cellY;
+    var buffer = this.context.getImageData(startX, startY, cellWidth, cellHeight).data;
+    if (cellX > 0 || cellY > 0) {
+        var prevCellX = subGridVertexData[cellX - 1] ? subGridVertexData[cellX - 1][cellY] : null;
+        var lastRow = prevCellX ? prevCellX.bufferWidth * 4 - 4 : 0;
+        var prevCellY = subGridVertexData[cellX][cellY - 1];
+        var lastCol = prevCellY ? (prevCellY.bufferHeight - 1) * prevCellY.bufferWidth * 4 : 0;
+        for (var p = 0; p <= buffer.length; p += 4) {
+            var curX = (p / 4) % cellWidth, curY = (p / 4 - curX) / cellHeight;
+            if (curX === 0 && prevCellX) {
+                buffer[p] = prevCellX.buffer[p + lastRow];
+                buffer[p + 1] = prevCellX.buffer[p + lastRow + 1];
+                buffer[p + 2] = prevCellX.buffer[p + lastRow + 2];
+                buffer[p + 3] = prevCellX.buffer[p + lastRow + 3];
+            }
+            if (curY === 0 && prevCellY) {
+                buffer[p] = prevCellY.buffer[p + lastCol];
+                buffer[p + 1] = prevCellY.buffer[p + lastCol + 1];
+                buffer[p + 2] = prevCellY.buffer[p + lastCol + 2];
+                buffer[p + 3] = prevCellY.buffer[p + lastCol + 3];
+            }
+        }
+    }
     var vertexData = this.createTerrainVertexData({
         width: this.width,
         height: this.depth,
-        subdivisions: subdivisions,
-        minHeight: this.minHeight,
-        maxHeight: this.maxHeight,
+        subdivisions: this.subdivisions,
+        minHeight: this.minHeight * this.subGridSize,
+        maxHeight: this.maxHeight * this.subGridSize,
         buffer: buffer,
-        bufferWidth: bufferWidth,
-        bufferHeight: bufferHeight,
+        bufferWidth: cellWidth,
+        bufferHeight: cellHeight,
     });
+    vertexData.buffer = buffer;
+    vertexData.bufferWidth = cellWidth;
+    vertexData.bufferHeight = cellHeight;
     return vertexData;
 };
 UranusTerrainGenerateHeightmap.prototype.createTerrainFromVertexData = function (vertexData) {

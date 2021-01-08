@@ -68,7 +68,7 @@ UranusTerrainSplatmaps.prototype.init = function (terrainEntity) {
   this.loadTerrainAssets([this.materialAsset].concat(this.colorMaps).concat(this.occlusionMaps)).then(
     function () {
       // --- check if we are using the
-      this.useAlpha = !!this.textureChannel3;
+      this.useAlpha = this.materialChannels.length === 4;
       this.useNormalMap = false;
       this.useDiffuseMap = false;
       this.useParallaxMap = false;

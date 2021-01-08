@@ -21,29 +21,18 @@ UranusTerrainSplatmaps.attributes.add("materialAsset", {
   type: "asset",
   assetType: "material",
 });
-UranusTerrainSplatmaps.attributes.add("textureChannel0", {
-  type: "asset",
-  assetType: "material",
-  title: "Textures Channel 1",
-  description: "Reference a material containing diffuse and optionally a normal and/or heightmap for the given channel.",
-});
-UranusTerrainSplatmaps.attributes.add("textureChannel1", {
-  type: "asset",
-  assetType: "material",
-  title: "Textures Channel 2",
-  description: "Reference a material containing diffuse and optionally a normal and/or heightmap for the given channel.",
-});
-UranusTerrainSplatmaps.attributes.add("textureChannel2", {
-  type: "asset",
-  assetType: "material",
-  title: "Textures Channel 3",
-  description: "Reference a material containing diffuse and optionally a normal and/or heightmap for the given channel.",
-});
-UranusTerrainSplatmaps.attributes.add("textureChannel3", {
-  type: "asset",
-  assetType: "material",
-  title: "Textures Channel 4",
-  description: "Reference a material containing diffuse and optionally a normal and/or heightmap for the given channel.",
+UranusTerrainSplatmaps.attributes.add("materialChannels", {
+  type: "json",
+  array: true,
+  schema: [
+    {
+      name: "materialAsset",
+      title: "Material",
+      type: "asset",
+      assetType: "material",
+      description: "Reference a material containing diffuse and optionally a normal and/or heightmap for the given channel.",
+    },
+  ],
 });
 UranusTerrainSplatmaps.attributes.add("tiling", {
   type: "number",
@@ -79,16 +68,22 @@ UranusTerrainSplatmaps.prototype.init = function (terrainEntity) {
   this.loadTerrainAssets([this.materialAsset].concat(this.colorMaps).concat(this.occlusionMaps)).then(
     function () {
       // --- check if we are using the
-      this.useAlpha = this.textureChannel3 !== null;
+      this.useAlpha = !!this.textureChannel3;
       this.useNormalMap = false;
       this.useDiffuseMap = false;
       this.useParallaxMap = false;
+
+      // --- prepare the subgrid/grid/totalgrid
+      this.gridSize = this.uranusTerrain.gridSize;
+      this.subGridSize = this.uranusTerrain.subGridSize;
+      this.totalGridSize = this.uranusTerrain.totalGridSize;
 
       // --- prepare the material
       var material = this.materialAsset.resource;
       this.material = material;
 
       // --- add the shader overrides per material channel
+      material.chunks.startVS = this.getStartVertexShader();
       material.chunks.basePS = this.getBaseShader();
 
       var colormapReady = false;
@@ -127,51 +122,83 @@ UranusTerrainSplatmaps.prototype.init = function (terrainEntity) {
 UranusTerrainSplatmaps.prototype.render = function () {
   var allColormaps = this.colorMaps;
   var allOcclusionmaps = this.occlusionMaps;
-  this.gridSize = this.uranusTerrain.gridSize;
 
+  var x, y, xa, ya;
   var index = 0;
 
-  for (var x = 0; x < this.gridSize; x++) {
-    for (var y = 0; y < this.gridSize; y++) {
+  for (x = 0; x < this.gridSize; x++) {
+    for (y = 0; y < this.gridSize; y++) {
       var colormap = allColormaps[index];
       var occlusionmap = allOcclusionmaps[index];
-      var chunkEntity = this.entity.findByName("Tile_" + x + "_" + y);
-
-      this.updateUniforms(chunkEntity.model.meshInstances[0], colormap.resource, occlusionmap ? occlusionmap.resource : null);
 
       index++;
+
+      for (xa = 0; xa < this.subGridSize; xa++) {
+        for (ya = 0; ya < this.subGridSize; ya++) {
+          var totalX = x + xa;
+          var totalY = y + ya;
+
+          var chunkEntity = this.entity.findByName("Tile_" + totalX + "_" + totalY);
+          var meshInstance = chunkEntity.model.meshInstances[0];
+
+          this.updateVertexUniforms(meshInstance, totalX, totalY);
+
+          this.updateUniforms(meshInstance, colormap.resource, occlusionmap ? occlusionmap.resource : null);
+        }
+      }
     }
   }
+};
+
+UranusTerrainSplatmaps.prototype.updateVertexUniforms = function (meshInstance, cellX, cellY) {
+  var ratioX = 1 / this.subGridSize;
+  var ratioY = 1 / this.subGridSize;
+
+  var offsetX = ratioX * cellX;
+
+  var factorY = 0.0;
+  switch (this.subGridSize) {
+    case 2:
+      factorY = 0.5;
+      break;
+    case 4:
+      factorY = 0.75;
+      break;
+    case 8:
+      factorY = 0.875;
+      break;
+    case 16:
+      factorY = 0.9375;
+      break;
+  }
+  var offsetY = -ratioY * cellY + factorY;
+
+  meshInstance.setParameter("terrain_colorMap_ratio", [ratioX, ratioY]);
+  meshInstance.setParameter("terrain_colorMap_offset", [offsetX, offsetY]);
 };
 
 UranusTerrainSplatmaps.prototype.updateUniforms = function (meshInstance, colormap, occlusionmap) {
   meshInstance.setParameter("texture_colorMap", colormap);
 
   if (this.useParallaxMap) {
-    meshInstance.setParameter("heightMap_channel0", this.textureChannel0.resource.heightMap);
-    meshInstance.setParameter("heightMap_channel1", this.textureChannel1.resource.heightMap);
-    meshInstance.setParameter("heightMap_channel2", this.textureChannel2.resource.heightMap);
-    if (this.useAlpha) {
-      meshInstance.setParameter("heightMap_channel3", this.textureChannel3.resource.heightMap);
-    }
+    this.materialChannels.forEach((materialChannel, index) => {
+      var texture = materialChannel.materialAsset.resource.heightMap;
+      meshInstance.setParameter("heightMap_channel" + index, texture);
+    });
   }
 
   if (this.useNormalMap) {
-    meshInstance.setParameter("normalMap_channel0", this.textureChannel0.resource.normalMap);
-    meshInstance.setParameter("normalMap_channel1", this.textureChannel1.resource.normalMap);
-    meshInstance.setParameter("normalMap_channel2", this.textureChannel2.resource.normalMap);
-    if (this.useAlpha) {
-      meshInstance.setParameter("normalMap_channel3", this.textureChannel3.resource.normalMap);
-    }
+    this.materialChannels.forEach((materialChannel, index) => {
+      var texture = materialChannel.materialAsset.resource.normalMap;
+      meshInstance.setParameter("normalMap_channel" + index, texture);
+    });
   }
 
   if (this.useDiffuseMap) {
-    meshInstance.setParameter("texture_channel0", this.textureChannel0.resource.diffuseMap);
-    meshInstance.setParameter("texture_channel1", this.textureChannel1.resource.diffuseMap);
-    meshInstance.setParameter("texture_channel2", this.textureChannel2.resource.diffuseMap);
-    if (this.useAlpha) {
-      meshInstance.setParameter("texture_channel3", this.textureChannel3.resource.diffuseMap);
-    }
+    this.materialChannels.forEach((materialChannel, index) => {
+      var texture = materialChannel.materialAsset.resource.diffuseMap;
+      meshInstance.setParameter("texture_channel" + index, texture);
+    });
 
     if (occlusionmap) {
       meshInstance.setParameter("texture_occlusion", occlusionmap);
@@ -182,7 +209,30 @@ UranusTerrainSplatmaps.prototype.updateUniforms = function (meshInstance, colorm
 };
 
 UranusTerrainSplatmaps.prototype.getBaseShader = function () {
-  return "uniform sampler2D texture_colorMap;\n" + "vec4 colormap;\n" + "uniform float terrain_tile;\n" + "uniform vec3 view_position;\n" + "uniform vec3 light_globalAmbient;\n" + "float square(float x) {\n" + "   return x*x;\n" + "}\n" + "float saturate(float x) {\n" + "   return clamp(x, 0.0, 1.0);\n" + "}\n" + "vec3 saturate(vec3 x) {\n" + "   return clamp(x, vec3(0.0), vec3(1.0));\n" + "}\n";
+  return "varying vec2 terrain_colorMap_uv;\n" + "uniform sampler2D texture_colorMap;\n" + "vec4 colormap;\n" + "uniform float terrain_tile;\n" + "uniform vec3 view_position;\n" + "uniform vec3 light_globalAmbient;\n" + "float square(float x) {\n" + "   return x*x;\n" + "}\n" + "float saturate(float x) {\n" + "   return clamp(x, 0.0, 1.0);\n" + "}\n" + "vec3 saturate(vec3 x) {\n" + "   return clamp(x, vec3(0.0), vec3(1.0));\n" + "}\n";
+
+  // vec2 getTexCoordFromAtlas(float tiling, float texRatio, float texOffsetX, float texOffsetY){
+  //   vec2 uv = fract(vUv0 * tiling) * texRatio;
+  //   uv.x += texOffsetX;
+  //   uv.y += texOffsetY + 0.005;
+  //   return uv;
+  // }
+};
+
+UranusTerrainSplatmaps.prototype.getStartVertexShader = function () {
+  return `
+  uniform vec2 terrain_colorMap_offset;
+  uniform vec2 terrain_colorMap_ratio;
+
+  varying vec2 terrain_colorMap_uv;
+  void main(void) {
+
+    float terrainU = vertex_texCoord0.x * terrain_colorMap_ratio.x + terrain_colorMap_offset.x;
+    float terrainV = vertex_texCoord0.y * terrain_colorMap_ratio.y + terrain_colorMap_offset.y;
+    terrain_colorMap_uv = vec2(terrainU, terrainV);
+
+    gl_Position = getPosition();
+  `;
 };
 
 UranusTerrainSplatmaps.prototype.getDiffuseShader = function (calcColormap, useOcclusion) {
@@ -193,33 +243,37 @@ UranusTerrainSplatmaps.prototype.getDiffuseShader = function (calcColormap, useO
     "   uniform sampler2D texture_channel3;\n" +
     (useOcclusion ? "   uniform sampler2D texture_occlusion;\n" : "") +
     "   void getAlbedo() {\n" +
-    (calcColormap ? "       colormap = texture2D(texture_colorMap, $UV);\n" : "") +
+    (calcColormap ? "       colormap = texture2D(texture_colorMap, terrain_colorMap_uv);\n" : "") +
     "     vec3 texel0 = texture2D(texture_channel0, vUv0 * terrain_tile).rgb;\n" +
     "     vec3 texel1 = texture2D(texture_channel1, vUv0 * terrain_tile).rgb;\n" +
     "     vec3 texel2 = texture2D(texture_channel2, vUv0 * terrain_tile).rgb;\n" +
-    (this.useAlpha ? " vec3 texel3 = texture2D(texture_channel3, vUv0 * terrain_tile).rgb\n;" : "") +
+    (this.useAlpha ? " vec3 texel3 = texture2D(texture_channel3, vUv0 * terrain_tile).rgb;\n" : "") +
     "     dAlbedo = gammaCorrectInput(addAlbedoDetail(colormap.r * texel0 + colormap.g * texel1 + colormap.b * texel2 " +
     (this.useAlpha ? "+ colormap.a * texel3" : "") +
     "));\n" +
-    (useOcclusion ? "   vec3 occlusion = texture2D( texture_occlusion, vUv0).rgb;\ndAlbedo *= occlusion;\n" : "") +
+    (useOcclusion ? "   vec3 occlusion = texture2D( texture_occlusion, terrain_colorMap_uv).rgb;\ndAlbedo *= occlusion;\n" : "") +
     "  }\n"
   );
 };
 
 UranusTerrainSplatmaps.prototype.getNormalShader = function (calcColormap) {
   return (
+    " uniform sampler2D texture_normalMap;\n" +
     " uniform sampler2D normalMap_channel0;\n" +
     " uniform sampler2D normalMap_channel1;\n" +
     " uniform sampler2D normalMap_channel2;\n" +
     " uniform sampler2D normalMap_channel3;\n" +
     " uniform float material_bumpiness;\n" +
     " void getNormal() {\n" +
-    (calcColormap ? "   colormap = texture2D(texture_colorMap, vUv0);\n" : "") +
+    (calcColormap ? "   colormap = texture2D(texture_colorMap, terrain_colorMap_uv);\n" : "") +
+    "   vec3 baseNormalMap = unpackNormal(texture2D(texture_normalMap, terrain_colorMap_uv));\n" +
     "   vec3 texel0 = unpackNormal(texture2D(normalMap_channel0, vUv0  * terrain_tile + dUvOffset));\n" +
     "   vec3 texel1 = unpackNormal(texture2D(normalMap_channel1, vUv0  * terrain_tile + dUvOffset));\n" +
     "   vec3 texel2 = unpackNormal(texture2D(normalMap_channel2, vUv0  * terrain_tile + dUvOffset));\n" +
-    "   vec3 texel3 = unpackNormal(texture2D(normalMap_channel3, vUv0  * terrain_tile + dUvOffset));\n" +
-    "   vec3 normalMap = colormap.r * texel0 + colormap.g * texel1 + colormap.b * texel2 + colormap.a * texel3;\n" +
+    (this.useAlpha ? " vec3 texel3 = unpackNormal(texture2D(normalMap_channel3, vUv0  * terrain_tile + dUvOffset));\n" : "") +
+    "   vec3 normalMap = baseNormalMap.rgb + colormap.r * texel0 + colormap.g * texel1 + colormap.b * texel2" +
+    (this.useAlpha ? "+ colormap.a * texel3" : "") +
+    ";\n" +
     "   dNormalMap = addNormalDetail(normalMap);\n" +
     "   normalMap = mix(vec3(0.0, 0.0, 1.0), normalMap, material_bumpiness);\n" +
     "   dNormalW = dTBN * normalMap;\n" +
@@ -236,12 +290,14 @@ UranusTerrainSplatmaps.prototype.getParallaxShader = function (calcColormap) {
     " uniform float material_heightMapFactor;\n" +
     " void getParallax() {\n" +
     "   float parallaxScale = material_heightMapFactor;\n" +
-    (calcColormap ? "   colormap = texture2D(texture_colorMap, vUv0);\n" : "") +
+    (calcColormap ? "   colormap = texture2D(texture_colorMap, terrain_colorMap_uv);\n" : "") +
     "   float texel0 = texture2D(heightMap_channel0, vUv0  * terrain_tile).$CH;\n" +
     "   float texel1 = texture2D(heightMap_channel1, vUv0  * terrain_tile).$CH;\n" +
     "   float texel2 = texture2D(heightMap_channel2, vUv0  * terrain_tile).$CH;\n" +
-    "   float texel3 = texture2D(heightMap_channel3, vUv0  * terrain_tile).$CH;\n" +
-    "   float height = colormap.r * texel0 + colormap.g * texel1 + colormap.b * texel2 + colormap.a * texel3;\n" +
+    (this.useAlpha ? " float texel3 = texture2D(heightMap_channel3, vUv0  * terrain_tile).$CH;\n" : "") +
+    "   float height = colormap.r * texel0 + colormap.g * texel1 + colormap.b * texel2" +
+    (this.useAlpha ? "+ colormap.a * texel3" : "") +
+    ";\n" +
     "   height = height * parallaxScale - parallaxScale*0.5;\n" +
     "   vec3 viewDirT = dViewDirW * dTBN;\n" +
     "   viewDirT.z += 0.42;\n" +

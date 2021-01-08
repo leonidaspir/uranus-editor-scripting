@@ -15,7 +15,7 @@ UranusTerrainGenerateHeightmap.attributes.add("heightMap", {
 UranusTerrainGenerateHeightmap.attributes.add("subGridSize", {
   type: "number",
   default: 1,
-  enum: [{ "1x1": 1 }, { "2x2": 2 }, { "3x3": 3 }, { "4x4": 4 }],
+  enum: [{ "1x1": 1 }, { "2x2": 2 }, { "4x4": 4 }, { "8x8": 8 }, { "16x16": 16 }],
 });
 
 UranusTerrainGenerateHeightmap.attributes.add("minHeight", {
@@ -66,8 +66,6 @@ UranusTerrainGenerateHeightmap.attributes.add("eventReady", {
   type: "string",
   default: "uranusTerrain:surface:ready",
 });
-
-//https://gamedev.stackexchange.com/questions/45938/apply-portion-of-texture-atlas
 
 // initialize code called once per entity
 UranusTerrainGenerateHeightmap.prototype.initialize = function () {
@@ -171,24 +169,24 @@ UranusTerrainGenerateHeightmap.prototype.createTerrain = function () {
     }
   }
 
-  var totalGridSize = this.gridSize * this.subGridSize;
+  this.totalGridSize = this.gridSize * this.subGridSize;
 
   // --- fix the border normals now that we have all neighbor data
-  for (x = 0; x < totalGridSize; x++) {
-    for (y = 0; y < totalGridSize; y++) {
+  for (x = 0; x < this.totalGridSize; x++) {
+    for (y = 0; y < this.totalGridSize; y++) {
       this.calculateNormalsBorders(x, y, this.subdivisions);
     }
   }
 
   // --- create the final tile model for each chunk
-  for (x = 0; x < totalGridSize; x++) {
-    for (y = 0; y < totalGridSize; y++) {
+  for (x = 0; x < this.totalGridSize; x++) {
+    for (y = 0; y < this.totalGridSize; y++) {
       var vertexData = this.gridVertexData[x][y];
 
       var model = this.createTerrainFromVertexData(vertexData);
 
       var chunkEntity = this.addModelToComponent(model, x, y);
-      chunkEntity.setPosition(x * this.width, 0, (totalGridSize - y - 1) * this.depth);
+      chunkEntity.setPosition(x * this.width, 0, (this.totalGridSize - y - 1) * this.depth);
     }
   }
 

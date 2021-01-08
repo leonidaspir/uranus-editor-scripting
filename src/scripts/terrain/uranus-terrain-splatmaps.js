@@ -11,11 +11,10 @@ UranusTerrainSplatmaps.attributes.add("colorMaps", {
   assetType: "texture",
   title: "Color Maps",
 });
-UranusTerrainSplatmaps.attributes.add("occlusionMaps", {
-  type: "asset",
-  array: true,
-  assetType: "texture",
-  title: "Occlusion Maps",
+UranusTerrainSplatmaps.attributes.add("useOcclusion", {
+  type: "number",
+  default: 0,
+  enum: [{ None: 0 }, { "From DiffuseMap": 1 }, { "From NormalMap Alpha": 2 }],
 });
 UranusTerrainSplatmaps.attributes.add("materialAsset", {
   type: "asset",
@@ -65,7 +64,7 @@ UranusTerrainSplatmaps.prototype.initialize = function () {
 UranusTerrainSplatmaps.prototype.init = function (terrainEntity) {
   this.uranusTerrain = terrainEntity && terrainEntity.script && terrainEntity.script.uranusTerrainGenerateHeightmap ? terrainEntity.script.uranusTerrainGenerateHeightmap : null;
 
-  this.loadTerrainAssets([this.materialAsset].concat(this.colorMaps).concat(this.occlusionMaps)).then(
+  this.loadTerrainAssets([this.materialAsset].concat(this.colorMaps)).then(
     function () {
       // --- check if we are using the
       this.useAlpha = this.materialChannels.length === 4;
@@ -103,7 +102,7 @@ UranusTerrainSplatmaps.prototype.init = function (terrainEntity) {
       }
 
       if (material.diffuseMap) {
-        material.chunks.diffusePS = this.getDiffuseShader(colormapReady === false, this.occlusionMaps.length > 0);
+        material.chunks.diffusePS = this.getDiffuseShader(colormapReady === false);
         colormapReady = true;
 
         this.useDiffuseMap = true;
@@ -121,7 +120,6 @@ UranusTerrainSplatmaps.prototype.init = function (terrainEntity) {
 
 UranusTerrainSplatmaps.prototype.render = function () {
   var allColormaps = this.colorMaps;
-  var allOcclusionmaps = this.occlusionMaps;
 
   var x, y, xa, ya;
   var index = 0;
@@ -129,7 +127,6 @@ UranusTerrainSplatmaps.prototype.render = function () {
   for (x = 0; x < this.gridSize; x++) {
     for (y = 0; y < this.gridSize; y++) {
       var colormap = allColormaps[index];
-      var occlusionmap = allOcclusionmaps[index];
 
       index++;
 
@@ -143,7 +140,7 @@ UranusTerrainSplatmaps.prototype.render = function () {
 
           this.updateVertexUniforms(meshInstance, totalX, totalY);
 
-          this.updateUniforms(meshInstance, colormap.resource, occlusionmap ? occlusionmap.resource : null);
+          this.updateUniforms(meshInstance, colormap.resource);
         }
       }
     }
@@ -177,13 +174,17 @@ UranusTerrainSplatmaps.prototype.updateVertexUniforms = function (meshInstance, 
   meshInstance.setParameter("terrain_colorMap_offset", [offsetX, offsetY]);
 };
 
-UranusTerrainSplatmaps.prototype.updateUniforms = function (meshInstance, colormap, occlusionmap) {
+UranusTerrainSplatmaps.prototype.updateUniforms = function (meshInstance, colormap) {
   meshInstance.setParameter("texture_colorMap", colormap);
 
   if (this.useParallaxMap) {
     this.materialChannels.forEach((materialChannel, index) => {
-      var texture = materialChannel.materialAsset.resource.heightMap;
-      meshInstance.setParameter("heightMap_channel" + index, texture);
+      var material = materialChannel.materialAsset.resource;
+
+      if (material.heightMapChannel !== "a") {
+        var texture = material.heightMap;
+        meshInstance.setParameter("heightMap_channel" + index, texture);
+      }
     });
   }
 
@@ -199,10 +200,6 @@ UranusTerrainSplatmaps.prototype.updateUniforms = function (meshInstance, colorm
       var texture = materialChannel.materialAsset.resource.diffuseMap;
       meshInstance.setParameter("texture_channel" + index, texture);
     });
-
-    if (occlusionmap) {
-      meshInstance.setParameter("texture_occlusion", occlusionmap);
-    }
   }
 
   meshInstance.setParameter("terrain_tile", this.tiling);
@@ -235,13 +232,13 @@ UranusTerrainSplatmaps.prototype.getStartVertexShader = function () {
   `;
 };
 
-UranusTerrainSplatmaps.prototype.getDiffuseShader = function (calcColormap, useOcclusion) {
+UranusTerrainSplatmaps.prototype.getDiffuseShader = function (calcColormap) {
   return (
     "   uniform sampler2D texture_channel0;\n" +
     "   uniform sampler2D texture_channel1;\n" +
     "   uniform sampler2D texture_channel2;\n" +
     "   uniform sampler2D texture_channel3;\n" +
-    (useOcclusion ? "   uniform sampler2D texture_occlusion;\n" : "") +
+    (this.useOcclusion === 1 ? "   uniform sampler2D texture_diffuseMap;\n" : "") +
     "   void getAlbedo() {\n" +
     (calcColormap ? "       colormap = texture2D(texture_colorMap, terrain_colorMap_uv);\n" : "") +
     "     vec3 texel0 = texture2D(texture_channel0, vUv0 * terrain_tile).rgb;\n" +
@@ -251,7 +248,7 @@ UranusTerrainSplatmaps.prototype.getDiffuseShader = function (calcColormap, useO
     "     dAlbedo = gammaCorrectInput(addAlbedoDetail(colormap.r * texel0 + colormap.g * texel1 + colormap.b * texel2 " +
     (this.useAlpha ? "+ colormap.a * texel3" : "") +
     "));\n" +
-    (useOcclusion ? "   vec3 occlusion = texture2D( texture_occlusion, terrain_colorMap_uv).rgb;\ndAlbedo *= occlusion;\n" : "") +
+    (this.useOcclusion > 0 ? "   float occlusion = texture2D( " + (this.useOcclusion === 2 ? "texture_normalMap" : "texture_diffuseMap") + ", terrain_colorMap_uv)." + (this.useOcclusion === 2 ? "a" : "r") + ";\ndAlbedo *= occlusion;\n" : "") +
     "  }\n"
   );
 };
@@ -291,10 +288,16 @@ UranusTerrainSplatmaps.prototype.getParallaxShader = function (calcColormap) {
     " void getParallax() {\n" +
     "   float parallaxScale = material_heightMapFactor;\n" +
     (calcColormap ? "   colormap = texture2D(texture_colorMap, terrain_colorMap_uv);\n" : "") +
-    "   float texel0 = texture2D(heightMap_channel0, vUv0  * terrain_tile).$CH;\n" +
-    "   float texel1 = texture2D(heightMap_channel1, vUv0  * terrain_tile).$CH;\n" +
-    "   float texel2 = texture2D(heightMap_channel2, vUv0  * terrain_tile).$CH;\n" +
-    (this.useAlpha ? " float texel3 = texture2D(heightMap_channel3, vUv0  * terrain_tile).$CH;\n" : "") +
+    "   float texel0 = texture2D(" +
+    (this.materialChannels[0].materialAsset.resource.heightMapChannel === "a" ? "texture_channel0" : "heightMap_channel0") +
+    ", vUv0  * terrain_tile).$CH;\n" +
+    "   float texel1 = texture2D(" +
+    (this.materialChannels[1].materialAsset.resource.heightMapChannel === "a" ? "texture_channel1" : "heightMap_channel1") +
+    ", vUv0  * terrain_tile).$CH;\n" +
+    "   float texel2 = texture2D(" +
+    (this.materialChannels[2].materialAsset.resource.heightMapChannel === "a" ? "texture_channel2" : "heightMap_channel2") +
+    ", vUv0  * terrain_tile).$CH;\n" +
+    (this.useAlpha ? "   float texel3 = texture2D(" + (this.materialChannels[3].materialAsset.resource.heightMapChannel === "a" ? "texture_channel3" : "heightMap_channel3") + ", vUv0  * terrain_tile).$CH;\n" : "") +
     "   float height = colormap.r * texel0 + colormap.g * texel1 + colormap.b * texel2" +
     (this.useAlpha ? "+ colormap.a * texel3" : "") +
     ";\n" +

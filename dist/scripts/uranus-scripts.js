@@ -6347,9 +6347,9 @@ UranusTerrainSplatmaps.attributes.add("useOcclusion", {
 });
 UranusTerrainSplatmaps.attributes.add("useNormal", {
     type: "number",
-    default: 0,
+    default: 2,
     title: "Normal Map",
-    enum: [{ None: 0 }, { "Material NormalMap": 1 }],
+    enum: [{ None: 0 }, { "Full Terrain": 1 }, { "Per Channel": 2 }],
 });
 UranusTerrainSplatmaps.attributes.add("tiling", {
     type: "number",
@@ -6452,21 +6452,11 @@ UranusTerrainSplatmaps.prototype.init = function (terrainEntity) {
             colormapReady = true;
             this.useParallaxMap = true;
         }
-        if (material.normalMap) {
-            if (this.useOcclusion === 2)
-                this.useNormal = 1;
-            var chunkName = this.useNormal === 1 ? "normalMapPS" : "normalVertexPS";
+        if (this.useNormal > 0) {
+            var chunkName = "normalMapPS";
             material.chunks[chunkName] = this.getNormalShader(colormapReady === false);
             colormapReady = true;
             this.useNormalMap = true;
-            if (this.useNormal === 0) {
-                material.normalMap = undefined;
-            }
-        }
-        else {
-            if (this.useOcclusion === 2) {
-                this.useOcclusion = 0;
-            }
         }
         if (material.diffuseMap) {
             material.chunks.diffusePS = this.getDiffuseShader(colormapReady === false);
@@ -6568,13 +6558,23 @@ UranusTerrainSplatmaps.prototype.getDiffuseShader = function (calcColormap) {
     var channelUniforms = "";
     var channelTexels = "";
     var finalColor = "   dAlbedo = gammaCorrectInput(";
+    var buffers = {};
     this.materialChannels.forEach(function (channel, index) {
         var material = channel.materialAsset.resource;
-        if (material.diffuseMap) {
-            channelUniforms += "   uniform sampler2D texture_channel" + index + ";\n";
-            channelTexels += "   vec3 texel" + index + " = texture2D(texture_channel" + index + ", vUv0 * terrain_tile).rgb;\n";
-            nextChannel = _this.splatmapChannels[index];
-            finalColor += nextChannel.map + "." + nextChannel.channel + " * texel" + index + " +";
+        var nextChannel = _this.splatmapChannels[index];
+        if (material.diffuseMap && nextChannel) {
+            // --- check if we can reuse buffer based on unique naming
+            var textureIndex = index;
+            if (isNaN(buffers[material.diffuseMap.name]) === false) {
+                textureIndex = buffers[material.diffuseMap.name];
+            }
+            else {
+                // --- store index to reuse the texture buffer
+                buffers[material.diffuseMap.name] = index;
+                channelUniforms += "   uniform sampler2D texture_channel" + index + ";\n";
+                channelTexels += "   vec3 texel" + index + " = texture2D(texture_channel" + index + ", vUv0 * terrain_tile).rgb;\n";
+            }
+            finalColor += nextChannel.map + "." + nextChannel.channel + " * texel" + textureIndex + " +";
         }
     });
     finalColor = finalColor.slice(0, -1);
@@ -6594,25 +6594,47 @@ UranusTerrainSplatmaps.prototype.getNormalShader = function (calcColormap) {
     var channelUniforms = "";
     var channelTexels = "";
     var finalColor = "   vec3 normalMap = " + (this.useNormal === 1 ? "baseNormalMap.rgb +" : "");
-    this.materialChannels.forEach(function (channel, index) {
-        var material = channel.materialAsset.resource;
-        if (material.normalMap) {
-            channelUniforms += "   uniform sampler2D normalMap_channel" + index + ";\n";
-            channelTexels += "   vec3 texel" + index + " = unpackTerrainNormal(texture2D(normalMap_channel" + index + ", vUv0  * terrain_tile + dUvOffset));\n";
-            nextChannel = _this.splatmapChannels[index];
-            finalColor += nextChannel.map + "." + nextChannel.channel + " * texel" + index + " +";
-        }
-    });
+    if (this.useNormal === 2) {
+        var buffers = {};
+        this.materialChannels.forEach(function (channel, index) {
+            var material = channel.materialAsset.resource;
+            var nextChannel = _this.splatmapChannels[index];
+            if (material.normalMap && nextChannel) {
+                // --- check if we can reuse buffer based on unique naming
+                var textureIndex = index;
+                if (isNaN(buffers[material.normalMap.name]) === false) {
+                    textureIndex = buffers[material.normalMap.name];
+                }
+                else {
+                    // --- store index to reuse the texture buffer
+                    buffers[material.normalMap.name] = index;
+                    // --- find the right normal unpacking method for each channel
+                    var isPackedNormalMap = material.normalMap ? material.normalMap.format === pc.PIXELFORMAT_DXT5 || material.normalMap.type === pc.TEXTURETYPE_SWIZZLEGGGR : false;
+                    var unpackMethod = isPackedNormalMap ? "unpackTerrainNormalXY" : "unpackTerrainNormalXYZ";
+                    channelUniforms += "   uniform sampler2D normalMap_channel" + index + ";\n";
+                    channelTexels += "   vec3 texel" + index + " = " + unpackMethod + "(texture2D(normalMap_channel" + index + ", vUv0  * terrain_tile + dUvOffset));\n";
+                }
+                finalColor += nextChannel.map + "." + nextChannel.channel + " * texel" + textureIndex + " +";
+            }
+        });
+    }
     finalColor = finalColor.slice(0, -1);
     finalColor += ";\n";
+    var baseUnpackMethod;
+    if (this.useNormal === 1) {
+        // --- find the right normal unpacking method for the base channel
+        var isPackedNormalMap = this.material.normalMap ? this.material.normalMap.format === pc.PIXELFORMAT_DXT5 || material.normalMap.type === pc.TEXTURETYPE_SWIZZLEGGGR : false;
+        baseUnpackMethod = isPackedNormalMap ? "unpackTerrainNormalXY" : "unpackTerrainNormalXYZ";
+    }
     return (channelUniforms +
         (this.useNormal === 1 ? "   uniform sampler2D texture_normalMap;\n" : "") +
         " uniform float material_bumpiness;\n" +
-        " vec3 unpackTerrainNormal(vec4 nmap) {return nmap.xyz * 2.0 - 1.0;}\n" +
+        " vec3 unpackTerrainNormalXYZ(vec4 nmap) {return nmap.xyz * 2.0 - 1.0;}\n" +
+        " vec3 unpackTerrainNormalXY(vec4 nmap) {vec3 normal; normal.xy = nmap.wy * 2.0 - 1.0; normal.z = sqrt(1.0 - saturate(dot(normal.xy, normal.xy))); return normal;}\n" +
         " void getNormal() {\n" +
         (calcColormap ? "       colormapA = texture2D(texture_colorMapA, terrain_colorMap_uv);\n" : "") +
         (calcColormap && this.splatmapChannels.length >= 6 ? "       colormapB = texture2D(texture_colorMapB, terrain_colorMap_uv);\n" : "") +
-        (this.useNormal === 1 ? "   vec3 baseNormalMap = unpackTerrainNormal(texture2D(texture_normalMap, terrain_colorMap_uv));\n" : "") +
+        (this.useNormal === 1 ? "   vec3 baseNormalMap = " + baseUnpackMethod + "(texture2D(texture_normalMap, terrain_colorMap_uv));\n" : "") +
         channelTexels +
         finalColor +
         "   dNormalMap = normalMap;\n" +
@@ -6625,14 +6647,24 @@ UranusTerrainSplatmaps.prototype.getParallaxShader = function (calcColormap) {
     var channelUniforms = "";
     var channelTexels = "";
     var finalColor = "   float height = ";
+    var buffers = {};
     this.materialChannels.forEach(function (channel, index) {
         var material = channel.materialAsset.resource;
-        if (material.heightMap) {
-            channelUniforms += "   uniform sampler2D heightMap_channel" + index + ";\n";
-            var sampler = material.heightMapChannel === "a" ? "texture_channel" : "heightMap_channel";
-            channelTexels += "   float texel" + index + " = texture2D(" + sampler + index + ", vUv0 * terrain_tile).$CH;\n";
-            nextChannel = _this.splatmapChannels[index];
-            finalColor += nextChannel.map + "." + nextChannel.channel + " * texel" + index + " +";
+        var nextChannel = _this.splatmapChannels[index];
+        if (material.heightMap && nextChannel) {
+            // --- check if we can reuse buffer based on unique naming
+            var textureIndex = index;
+            if (isNaN(buffers[material.heightMap.name]) === false) {
+                textureIndex = buffers[material.heightMap.name];
+            }
+            else {
+                // --- store index to reuse the texture buffer
+                buffers[material.heightMap.name] = index;
+                channelUniforms += "   uniform sampler2D heightMap_channel" + index + ";\n";
+                var sampler = material.heightMapChannel === "a" ? "texture_channel" : "heightMap_channel";
+                channelTexels += "   float texel" + index + " = texture2D(" + sampler + index + ", vUv0 * terrain_tile).$CH;\n";
+            }
+            finalColor += nextChannel.map + "." + nextChannel.channel + " * texel" + textureIndex + " +";
         }
     });
     finalColor = finalColor.slice(0, -1);

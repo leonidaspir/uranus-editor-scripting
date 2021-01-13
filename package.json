@@ -8,7 +8,7 @@
     "watch-extension": "tsc -w -p ./extension/",
     "build-scripts": "tsc -p ./src/scripts/",
     "watch-scripts": "tsc -w -p ./src/scripts/",
-    "watch-scripts-all": "concurrently \"cd ./dist/scripts/ && pic-serve\" \"start chrome https://playcanvas.com/editor/scene/1066091\" \"tsc -w -p ./src/scripts/\" ",
+    "watch-scripts-all": "concurrently \"cd ./dist/scripts/ && pic-serve\" \"start chrome https://playcanvas.com/editor/scene/1069218\" \"tsc -w -p ./src/scripts/\" ",
     "build-sdk": "webpack --config ./src/sdk/webpack.production.config.js",
     "watch-sdk": "webpack --watch --config ./src/sdk/webpack.config.js",
     "watch-sdk-all": "concurrently \"cd ./dist/sdk/ && pic-serve\" \"start chrome https://playcanvas.com/editor/scene/928824\" \"webpack --watch --config ./src/sdk/webpack.config.js\" ",

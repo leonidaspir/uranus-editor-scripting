@@ -130,6 +130,8 @@ UranusTerrainSplatmaps.prototype.init = function (terrainEntity) {
           });
       }
 
+      console.log(this.splatmapChannels);
+
       this.useNormalMap = false;
       this.useDiffuseMap = false;
       this.useParallaxMap = false;
@@ -382,7 +384,7 @@ UranusTerrainSplatmaps.prototype.getNormalShader = function (calcColormap) {
   var baseUnpackMethod;
   if (this.useNormal === 1) {
     // --- find the right normal unpacking method for the base channel
-    var isPackedNormalMap = this.material.normalMap ? this.material.normalMap.format === pc.PIXELFORMAT_DXT5 || material.normalMap.type === pc.TEXTURETYPE_SWIZZLEGGGR : false;
+    var isPackedNormalMap = this.material.normalMap ? this.material.normalMap.format === pc.PIXELFORMAT_DXT5 || this.material.normalMap.type === pc.TEXTURETYPE_SWIZZLEGGGR : false;
     baseUnpackMethod = isPackedNormalMap ? "unpackTerrainNormalXY" : "unpackTerrainNormalXYZ";
   }
 

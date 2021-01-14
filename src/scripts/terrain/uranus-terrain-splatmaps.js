@@ -41,13 +41,14 @@ UranusTerrainSplatmaps.attributes.add("tiling", {
 
 UranusTerrainSplatmaps.attributes.add("eventInit", {
   type: "string",
+  default: "uranusTerrain:surface:ready",
   title: "On Init",
 });
 
 UranusTerrainSplatmaps.attributes.add("eventReady", {
   type: "string",
   default: "uranusTerrain:splatmaps:ready",
-  title: "On Ready",
+  title: "Fire Ready",
 });
 UranusTerrainSplatmaps.attributes.add("materialChannels", {
   type: "json",
@@ -130,8 +131,6 @@ UranusTerrainSplatmaps.prototype.init = function (terrainEntity) {
           });
       }
 
-      console.log(this.splatmapChannels);
-
       this.useNormalMap = false;
       this.useDiffuseMap = false;
       this.useParallaxMap = false;
@@ -179,7 +178,11 @@ UranusTerrainSplatmaps.prototype.init = function (terrainEntity) {
       this.render();
 
       // --- fire a custom app wide event that the terrain surface is ready
-      this.app.fire(this.eventReady, this.entity);
+      if (this.eventReady) {
+        window.setTimeout(() => {
+          this.app.fire(this.eventReady, this.entity);
+        }, 0);
+      }
     }.bind(this)
   );
 };

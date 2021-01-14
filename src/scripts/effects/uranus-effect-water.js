@@ -18,14 +18,7 @@ UranusEffectWater.attributes.add("camera", {
 UranusEffectWater.attributes.add("resolution", {
   type: "number",
   default: 512,
-  enum: [
-    { 128: 128 },
-    { 256: 256 },
-    { 512: 512 },
-    { 1024: 1024 },
-    { 2048: 2048 },
-    { 4096: 4096 },
-  ],
+  enum: [{ 128: 128 }, { 256: 256 }, { 512: 512 }, { 1024: 1024 }, { 2048: 2048 }, { 4096: 4096 }],
 });
 UranusEffectWater.attributes.add("colorWater", {
   type: "rgb",
@@ -87,6 +80,10 @@ UranusEffectWater.attributes.add("autoUpdate", {
   type: "boolean",
   default: false,
 });
+UranusEffectWater.attributes.add("updateOnStart", {
+  type: "boolean",
+  default: true,
+});
 
 UranusEffectWater.prototype.initialize = function () {
   // --- shader
@@ -103,7 +100,6 @@ UranusEffectWater.prototype.initialize = function () {
   this.blurSamples = 3;
   this.blurPasses = 3;
 
-  this.dirty = true;
   this.rendering = false;
 
   this.color3 = new Float32Array(3);
@@ -111,8 +107,11 @@ UranusEffectWater.prototype.initialize = function () {
 
   this.prepare();
 
+  // --- check when to execute, directly or after a custom event is fired
+  this.dirty = this.updateOnStart;
+
   this.app.on(
-    "water:render",
+    "uranusWater:update",
     function () {
       this.dirty = true;
     },
@@ -130,8 +129,7 @@ UranusEffectWater.prototype.prepare = function () {
 
   // --- we clear one of the default material maps, to use for our custom depth map later
   // --- the reason for not putting a custom uniform is to provide editor editing of the material without breaking the shader on recompilation
-  this.material.chunks.normalDetailMapPS =
-    "vec3 addNormalDetail(vec3 normalMap) {return normalMap;}";
+  this.material.chunks.normalDetailMapPS = "vec3 addNormalDetail(vec3 normalMap) {return normalMap;}";
 
   this.prepareShaders();
   this.prepareTextures();
@@ -141,16 +139,13 @@ UranusEffectWater.prototype.prepare = function () {
 };
 
 UranusEffectWater.prototype.onDestroy = function () {
-  this.app.off("water:render", this.render, this);
+  this.app.off("uranusWater:update", this.render, this);
 };
 
 UranusEffectWater.prototype.prepareShaders = function () {
   this.vertexBuffer = this.createFullscreenQuad(this.app.graphicsDevice);
 
-  var shaderBlur = this.shaderBlur.replace(
-    "%PRECISSION%",
-    this.app.graphicsDevice.precision
-  );
+  var shaderBlur = this.shaderBlur.replace("%PRECISSION%", this.app.graphicsDevice.precision);
 
   this.quadShaderBlurHorizontal = new pc.Shader(this.app.graphicsDevice, {
     attributes: { aPosition: pc.SEMANTIC_POSITION },
@@ -166,23 +161,7 @@ UranusEffectWater.prototype.prepareShaders = function () {
 
   this.uBlurOffsetsHorizontal = new Float32Array(this.blurSamples * 2);
   this.uBlurOffsetsVertical = new Float32Array(this.blurSamples * 2);
-  this.uBlurWeights = new Float32Array([
-    0.4,
-    0.6,
-    0.8,
-    0.0875,
-    0.05,
-    0.025,
-    0.0875,
-    0.05,
-    0.025,
-    0.0875,
-    0.05,
-    0.025,
-    0.0875,
-    0.05,
-    0.025,
-  ]);
+  this.uBlurWeights = new Float32Array([0.4, 0.6, 0.8, 0.0875, 0.05, 0.025, 0.0875, 0.05, 0.025, 0.0875, 0.05, 0.025, 0.0875, 0.05, 0.025]);
 
   var texel = 1 / this.resolution;
   // var offset = (this.blurSamples / 2) * texel;
@@ -284,21 +263,11 @@ UranusEffectWater.prototype.updateWater = function () {
   for (var i = 0; i < this.blurPasses; i++) {
     scope.resolve("uBaseTexture").setValue(this.textureA);
     scope.resolve("uOffsets[0]").setValue(this.uBlurOffsetsHorizontal);
-    pc.drawFullscreenQuad(
-      this.app.graphicsDevice,
-      this.renderTargetB,
-      this.vertexBuffer,
-      this.quadShaderBlurHorizontal
-    );
+    pc.drawFullscreenQuad(this.app.graphicsDevice, this.renderTargetB, this.vertexBuffer, this.quadShaderBlurHorizontal);
 
     scope.resolve("uBaseTexture").setValue(this.textureB);
     scope.resolve("uOffsets[0]").setValue(this.uBlurOffsetsVertical);
-    pc.drawFullscreenQuad(
-      this.app.graphicsDevice,
-      this.renderTargetA,
-      this.vertexBuffer,
-      this.quadShaderBlurVertical
-    );
+    pc.drawFullscreenQuad(this.app.graphicsDevice, this.renderTargetA, this.vertexBuffer, this.quadShaderBlurVertical);
   }
 
   this.material.diffuseMap = this.textureA;
@@ -323,14 +292,8 @@ UranusEffectWater.prototype.updateUniforms = function () {
   this.material.setParameter("waveVertexLength", this.waveVertexLength);
   this.material.setParameter("waveVertexAmplitude", this.waveVertexAmplitude);
 
-  this.material.setParameter(
-    "colorWater",
-    this.mapColorToArray(this.colorWater, this.color3)
-  );
-  this.material.setParameter(
-    "colorWave",
-    this.mapColorToArray(this.colorWave, this.color)
-  );
+  this.material.setParameter("colorWater", this.mapColorToArray(this.colorWater, this.color3));
+  this.material.setParameter("colorWave", this.mapColorToArray(this.colorWave, this.color));
 };
 
 UranusEffectWater.prototype.mapColorToArray = function (color, arr) {
@@ -359,9 +322,7 @@ UranusEffectWater.prototype.update = function (dt) {
 
 UranusEffectWater.prototype.createFullscreenQuad = function (device) {
   // Create the vertex format
-  var vertexFormat = new pc.VertexFormat(device, [
-    { semantic: pc.SEMANTIC_POSITION, components: 2, type: pc.TYPE_FLOAT32 },
-  ]);
+  var vertexFormat = new pc.VertexFormat(device, [{ semantic: pc.SEMANTIC_POSITION, components: 2, type: pc.TYPE_FLOAT32 }]);
 
   // Create a vertex buffer
   var vertexBuffer = new pc.VertexBuffer(device, vertexFormat, 4);
@@ -385,14 +346,7 @@ UranusEffectWater.prototype.getChunkSourcesShader = function () {
 };
 
 UranusEffectWater.prototype.getVertPassThroughShader = function () {
-  return (
-    "attribute vec2 aPosition;\n" +
-    "varying vec2 vUv0;\n" +
-    "void main(void) {\n" +
-    "    gl_Position = vec4(aPosition, 0.0, 1.0);\n" +
-    "    vUv0 = (aPosition + 1.0) * 0.5;\n" +
-    "}"
-  );
+  return "attribute vec2 aPosition;\n" + "varying vec2 vUv0;\n" + "void main(void) {\n" + "    gl_Position = vec4(aPosition, 0.0, 1.0);\n" + "    vUv0 = (aPosition + 1.0) * 0.5;\n" + "}";
 };
 
 UranusEffectWater.prototype.getGaussianBlurShader = function () {

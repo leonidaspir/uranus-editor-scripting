@@ -4819,14 +4819,7 @@ UranusEffectWater.attributes.add("camera", {
 UranusEffectWater.attributes.add("resolution", {
     type: "number",
     default: 512,
-    enum: [
-        { 128: 128 },
-        { 256: 256 },
-        { 512: 512 },
-        { 1024: 1024 },
-        { 2048: 2048 },
-        { 4096: 4096 },
-    ],
+    enum: [{ 128: 128 }, { 256: 256 }, { 512: 512 }, { 1024: 1024 }, { 2048: 2048 }, { 4096: 4096 }],
 });
 UranusEffectWater.attributes.add("colorWater", {
     type: "rgb",
@@ -4888,6 +4881,10 @@ UranusEffectWater.attributes.add("autoUpdate", {
     type: "boolean",
     default: false,
 });
+UranusEffectWater.attributes.add("updateOnStart", {
+    type: "boolean",
+    default: true,
+});
 UranusEffectWater.prototype.initialize = function () {
     // --- shader
     this.chunkSources = this.getChunkSourcesShader();
@@ -4899,12 +4896,13 @@ UranusEffectWater.prototype.initialize = function () {
     this.timer = 0;
     this.blurSamples = 3;
     this.blurPasses = 3;
-    this.dirty = true;
     this.rendering = false;
     this.color3 = new Float32Array(3);
     this.color = new Float32Array(4);
     this.prepare();
-    this.app.on("water:render", function () {
+    // --- check when to execute, directly or after a custom event is fired
+    this.dirty = this.updateOnStart;
+    this.app.on("uranusWater:update", function () {
         this.dirty = true;
     }, this);
     this.on("destroy", this.onDestroy, this);
@@ -4916,15 +4914,14 @@ UranusEffectWater.prototype.prepare = function () {
     this.material.chunks.transformVS = this.shaderTransform;
     // --- we clear one of the default material maps, to use for our custom depth map later
     // --- the reason for not putting a custom uniform is to provide editor editing of the material without breaking the shader on recompilation
-    this.material.chunks.normalDetailMapPS =
-        "vec3 addNormalDetail(vec3 normalMap) {return normalMap;}";
+    this.material.chunks.normalDetailMapPS = "vec3 addNormalDetail(vec3 normalMap) {return normalMap;}";
     this.prepareShaders();
     this.prepareTextures();
     this.prepareLayers();
     this.on("attr", this.updateUniforms);
 };
 UranusEffectWater.prototype.onDestroy = function () {
-    this.app.off("water:render", this.render, this);
+    this.app.off("uranusWater:update", this.render, this);
 };
 UranusEffectWater.prototype.prepareShaders = function () {
     this.vertexBuffer = this.createFullscreenQuad(this.app.graphicsDevice);
@@ -4941,23 +4938,7 @@ UranusEffectWater.prototype.prepareShaders = function () {
     });
     this.uBlurOffsetsHorizontal = new Float32Array(this.blurSamples * 2);
     this.uBlurOffsetsVertical = new Float32Array(this.blurSamples * 2);
-    this.uBlurWeights = new Float32Array([
-        0.4,
-        0.6,
-        0.8,
-        0.0875,
-        0.05,
-        0.025,
-        0.0875,
-        0.05,
-        0.025,
-        0.0875,
-        0.05,
-        0.025,
-        0.0875,
-        0.05,
-        0.025,
-    ]);
+    this.uBlurWeights = new Float32Array([0.4, 0.6, 0.8, 0.0875, 0.05, 0.025, 0.0875, 0.05, 0.025, 0.0875, 0.05, 0.025, 0.0875, 0.05, 0.025]);
     var texel = 1 / this.resolution;
     // var offset = (this.blurSamples / 2) * texel;
     for (var i = 0; i < this.blurSamples; i++) {
@@ -5084,9 +5065,7 @@ UranusEffectWater.prototype.update = function (dt) {
 };
 UranusEffectWater.prototype.createFullscreenQuad = function (device) {
     // Create the vertex format
-    var vertexFormat = new pc.VertexFormat(device, [
-        { semantic: pc.SEMANTIC_POSITION, components: 2, type: pc.TYPE_FLOAT32 },
-    ]);
+    var vertexFormat = new pc.VertexFormat(device, [{ semantic: pc.SEMANTIC_POSITION, components: 2, type: pc.TYPE_FLOAT32 }]);
     // Create a vertex buffer
     var vertexBuffer = new pc.VertexBuffer(device, vertexFormat, 4);
     // Fill the vertex buffer
@@ -5105,12 +5084,7 @@ UranusEffectWater.prototype.getChunkSourcesShader = function () {
     return "gl_FragColor.rgb = vec3(1.0, 1.0, 1.0);";
 };
 UranusEffectWater.prototype.getVertPassThroughShader = function () {
-    return ("attribute vec2 aPosition;\n" +
-        "varying vec2 vUv0;\n" +
-        "void main(void) {\n" +
-        "    gl_Position = vec4(aPosition, 0.0, 1.0);\n" +
-        "    vUv0 = (aPosition + 1.0) * 0.5;\n" +
-        "}");
+    return "attribute vec2 aPosition;\n" + "varying vec2 vUv0;\n" + "void main(void) {\n" + "    gl_Position = vec4(aPosition, 0.0, 1.0);\n" + "    vUv0 = (aPosition + 1.0) * 0.5;\n" + "}";
 };
 UranusEffectWater.prototype.getGaussianBlurShader = function () {
     return ("precision %PRECISSION% float;\n" +
@@ -6358,12 +6332,13 @@ UranusTerrainSplatmaps.attributes.add("tiling", {
 });
 UranusTerrainSplatmaps.attributes.add("eventInit", {
     type: "string",
+    default: "uranusTerrain:surface:ready",
     title: "On Init",
 });
 UranusTerrainSplatmaps.attributes.add("eventReady", {
     type: "string",
     default: "uranusTerrain:splatmaps:ready",
-    title: "On Ready",
+    title: "Fire Ready",
 });
 UranusTerrainSplatmaps.attributes.add("materialChannels", {
     type: "json",
@@ -6392,6 +6367,7 @@ UranusTerrainSplatmaps.prototype.initialize = function () {
 UranusTerrainSplatmaps.prototype.init = function (terrainEntity) {
     this.uranusTerrain = terrainEntity && terrainEntity.script && terrainEntity.script.uranusTerrainGenerateHeightmap ? terrainEntity.script.uranusTerrainGenerateHeightmap : null;
     this.loadTerrainAssets([this.materialAsset].concat(this.colorMapsA).concat(this.colorMapsB)).then(function () {
+        var _this = this;
         // --- build the list of splatmap channels used
         var colorMapA = this.colorMapsA[0];
         var colorMapB = this.colorMapsB[0];
@@ -6433,7 +6409,6 @@ UranusTerrainSplatmaps.prototype.init = function (terrainEntity) {
                     channel: "a",
                 });
         }
-        console.log(this.splatmapChannels);
         this.useNormalMap = false;
         this.useDiffuseMap = false;
         this.useParallaxMap = false;
@@ -6467,7 +6442,11 @@ UranusTerrainSplatmaps.prototype.init = function (terrainEntity) {
         material.update();
         this.render();
         // --- fire a custom app wide event that the terrain surface is ready
-        this.app.fire(this.eventReady, this.entity);
+        if (this.eventReady) {
+            window.setTimeout(function () {
+                _this.app.fire(_this.eventReady, _this.entity);
+            }, 0);
+        }
     }.bind(this));
 };
 UranusTerrainSplatmaps.prototype.render = function () {

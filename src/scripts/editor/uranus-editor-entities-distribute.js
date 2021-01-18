@@ -1,9 +1,7 @@
 // --- dependencies
 // UPNG.js
 // ----------------
-var UranusEditorEntitiesDistribute = pc.createScript(
-  "uranusEditorEntitiesDistribute"
-);
+var UranusEditorEntitiesDistribute = pc.createScript("uranusEditorEntitiesDistribute");
 
 UranusEditorEntitiesDistribute.attributes.add("inEditor", {
   type: "boolean",
@@ -45,8 +43,7 @@ UranusEditorEntitiesDistribute.attributes.add("minHeight", {
 UranusEditorEntitiesDistribute.attributes.add("bank", {
   type: "entity",
   title: "Bank",
-  description:
-    "If a terrain is provided, you must provide a bank/entity with children entities to be used as templates for instancing.",
+  description: "If a terrain is provided, you must provide a bank/entity with children entities to be used as templates for instancing.",
 });
 
 UranusEditorEntitiesDistribute.attributes.add("terrainSampleDist", {
@@ -54,8 +51,7 @@ UranusEditorEntitiesDistribute.attributes.add("terrainSampleDist", {
   default: 10,
   min: 0,
   title: "Sample Dist",
-  description:
-    "This is the distance in world units for which a point will be sampled from the splatmaps. Be careful a small value can produce a very high number of instances.",
+  description: "This is the distance in world units for which a point will be sampled from the splatmaps. Be careful a small value can produce a very high number of instances.",
 });
 
 UranusEditorEntitiesDistribute.attributes.add("terrainSampleOffset", {
@@ -64,50 +60,41 @@ UranusEditorEntitiesDistribute.attributes.add("terrainSampleOffset", {
   min: 0.1,
   max: 1,
   title: "Sample Offset",
-  description:
-    "This determines how definitive the splatmap color has to be to allow instances to be placed.",
+  description: "This determines how definitive the splatmap color has to be to allow instances to be placed.",
 });
 
 UranusEditorEntitiesDistribute.attributes.add("onEvent", {
   type: "string",
   title: "On Event",
-  description:
-    "You can provide an event name that when globally fired the generation of the instances will start, instead of doing it inside the entity initialize method.",
+  description: "You can provide an event name that when globally fired the generation of the instances will start, instead of doing it inside the entity initialize method.",
 });
 
 UranusEditorEntitiesDistribute.attributes.add("brushRadius", {
   type: "number",
   title: "Dense Radius",
   min: 0.0,
-  description:
-    "If a value larger than 0 is provided the algorithm will spawn additional instances in a circle around the instance point.",
+  description: "If a value larger than 0 is provided the algorithm will spawn additional instances in a circle around the instance point.",
 });
 
 UranusEditorEntitiesDistribute.attributes.add("itemsNo", {
   type: "number",
   title: "Items No",
   min: 1.0,
-  description:
-    "The number of items will be spawned per instance if a dense radius is provided.",
+  description: "The number of items will be spawned per instance if a dense radius is provided.",
 });
 
 UranusEditorEntitiesDistribute.attributes.add("brushAngle", {
   type: "number",
   title: "Rotate?",
-  enum: [
-    { "Don't rotate": 0 },
-    { "X Axis": 1 },
-    { "Y Axis": 2 },
-    { "Z Axis": 3 },
-  ],
+  enum: [{ "Don't rotate": 0 }, { "X Axis": 1 }, { "Y Axis": 2 }, { "Z Axis": 3 }],
 });
 
 UranusEditorEntitiesDistribute.attributes.add("brushScale", {
   type: "vec2",
+  default: [1, 1],
   title: "Scale min/max",
   placeholder: ["Min", "Max"],
-  description:
-    "If a dense radius is provided use scale min/max to add a random scale factor to each spawned instance.",
+  description: "If a dense radius is provided use scale min/max to add a random scale factor to each spawned instance.",
 });
 
 UranusEditorEntitiesDistribute.attributes.add("runBatcher", {
@@ -117,9 +104,7 @@ UranusEditorEntitiesDistribute.attributes.add("runBatcher", {
 });
 
 // this is an editor only script
-UranusEditorEntitiesDistribute.prototype.editorInitialize = function (
-  manualRun
-) {
+UranusEditorEntitiesDistribute.prototype.editorInitialize = function (manualRun) {
   if (!this.inEditor) return;
 
   this.running = false;
@@ -129,13 +114,13 @@ UranusEditorEntitiesDistribute.prototype.editorInitialize = function (
     if (this.runBatcher === true) {
       this.executeBatcher();
     }
-  } else {
+  } /*else {
     if (!manualRun && this.onEvent) {
       this.app.once(this.onEvent, this.initiate, this);
     } else {
       this.initiate();
     }
-  }
+  }*/
 };
 
 UranusEditorEntitiesDistribute.prototype.initiate = function () {
@@ -212,10 +197,7 @@ UranusEditorEntitiesDistribute.prototype.prepareMap = function () {
           var pixels = image.data;
           var offset = this.terrainSampleOffset * 255;
           var samplesCount = 0;
-          var nextDist = pc.math.random(
-            this.terrainSampleDist * 0.5,
-            this.terrainSampleDist * 1.5
-          );
+          var nextDist = pc.math.random(this.terrainSampleDist * 0.5, this.terrainSampleDist * 1.5);
 
           for (i = 0; i < pixels.length; i += 4) {
             if (pixels[i + this.terrainChannel] >= offset) {
@@ -233,10 +215,7 @@ UranusEditorEntitiesDistribute.prototype.prepareMap = function () {
               // --- check if we reached the sample distance
               if (samplesCount > nextDist) {
                 samplesCount = 0;
-                nextDist = pc.math.random(
-                  this.terrainSampleDist * 0.5,
-                  this.terrainSampleDist * 1.5
-                );
+                nextDist = pc.math.random(this.terrainSampleDist * 0.5, this.terrainSampleDist * 1.5);
 
                 points.push([x, z]);
               }
@@ -258,10 +237,7 @@ UranusEditorEntitiesDistribute.prototype.prepareMap = function () {
             this.vec2.set(x, 10000, z);
             this.vec3.set(x, -10000, z);
 
-            var result = this.app.systems.rigidbody.raycastFirst(
-              this.vec2,
-              this.vec3
-            );
+            var result = this.app.systems.rigidbody.raycastFirst(this.vec2, this.vec3);
             if (!result) continue;
 
             var height = result.point.y;
@@ -275,21 +251,9 @@ UranusEditorEntitiesDistribute.prototype.prepareMap = function () {
               this.setRandomRotation(this.vec, this.brushAngle);
 
               // --- random scale
-              var newScaleFactor = pc.math.random(
-                this.brushScale.x,
-                this.brushScale.y
-              );
+              var newScaleFactor = pc.math.random(this.brushScale.x, this.brushScale.y);
 
-              instances.push([
-                bankIndex,
-                x,
-                height,
-                z,
-                this.vec.x,
-                this.vec.y,
-                this.vec.z,
-                newScaleFactor,
-              ]);
+              instances.push([bankIndex, x, height, z, this.vec.x, this.vec.y, this.vec.z, newScaleFactor]);
             }
           }
 
@@ -300,9 +264,7 @@ UranusEditorEntitiesDistribute.prototype.prepareMap = function () {
   );
 };
 
-UranusEditorEntitiesDistribute.prototype.condenseInstances = function (
-  instances
-) {
+UranusEditorEntitiesDistribute.prototype.condenseInstances = function (instances) {
   instances.forEach(
     function (instance) {
       for (var i = 1; i <= this.itemsNo; i++) {
@@ -311,21 +273,14 @@ UranusEditorEntitiesDistribute.prototype.condenseInstances = function (
 
         var instancePos = this.vec.set(instance[1], instance[2], instance[3]);
 
-        this.vec1.x =
-          instancePos.x +
-          b * this.brushRadius * Math.cos((2 * Math.PI * a) / b);
-        this.vec1.z =
-          instancePos.z +
-          b * this.brushRadius * Math.sin((2 * Math.PI * a) / b);
+        this.vec1.x = instancePos.x + b * this.brushRadius * Math.cos((2 * Math.PI * a) / b);
+        this.vec1.z = instancePos.z + b * this.brushRadius * Math.sin((2 * Math.PI * a) / b);
 
         // --- get elevation under the point
         this.vec2.set(this.vec1.x, 10000, this.vec1.z);
         this.vec3.set(this.vec1.x, -10000, this.vec1.z);
 
-        var result = this.app.systems.rigidbody.raycastFirst(
-          this.vec2,
-          this.vec3
-        );
+        var result = this.app.systems.rigidbody.raycastFirst(this.vec2, this.vec3);
 
         if (result) {
           this.vec1.y = result.point.y;
@@ -339,22 +294,10 @@ UranusEditorEntitiesDistribute.prototype.condenseInstances = function (
         this.setRandomRotation(this.vec2, this.brushAngle);
 
         // --- scale them up
-        var newScaleFactor = pc.math.random(
-          this.brushScale.x,
-          this.brushScale.y
-        );
+        var newScaleFactor = pc.math.random(this.brushScale.x, this.brushScale.y);
 
         // --- add a new instance to the instances array
-        instances.push([
-          instance[0],
-          this.vec1.x,
-          this.vec1.y,
-          this.vec1.z,
-          this.vec2.x,
-          this.vec2.y,
-          this.vec2.z,
-          newScaleFactor,
-        ]);
+        instances.push([instance[0], this.vec1.x, this.vec1.y, this.vec1.z, this.vec2.x, this.vec2.y, this.vec2.z, newScaleFactor]);
       }
     }.bind(this)
   );
@@ -372,8 +315,11 @@ UranusEditorEntitiesDistribute.prototype.spawnInstances = function (instances) {
 
   instances.forEach(
     function (instance, index) {
-      var parentBank = this.bank.children;
-      var bank = parentBank ? parentBank[instance[0]] : this.bank;
+      // var parentBank = this.bank.children;
+      // var bank = parentBank ? parentBank[instance[0]] : this.bank;
+
+      var bank = this.bank;
+      console.log(bank._guid);
 
       var node = bank.clone();
 
@@ -400,16 +346,10 @@ UranusEditorEntitiesDistribute.prototype.spawnInstances = function (instances) {
     }.bind(this)
   );
 
-  console.log(
-    "Spawned " + this.entity.name + " " + instances.length + " instances."
-  );
+  console.log("Spawned " + this.entity.name + " " + instances.length + " instances.");
 };
 
-UranusEditorEntitiesDistribute.prototype.setRandomRotation = function (
-  vec,
-  axis,
-  single
-) {
+UranusEditorEntitiesDistribute.prototype.setRandomRotation = function (vec, axis, single) {
   switch (axis) {
     case 1:
       vec.x = pc.math.random(0, 360);
@@ -439,10 +379,16 @@ UranusEditorEntitiesDistribute.prototype.setRandomRotation = function (
 };
 
 // --- editor script methods
-UranusEditorEntitiesDistribute.prototype.editorScriptPanelRender = function (
-  element
-) {
+UranusEditorEntitiesDistribute.prototype.editorScriptPanelRender = function (element) {
   var containerEl = element.firstChild;
+
+  // --- spawn instances as editor items
+  var btnSpawn = new ui.Button({
+    text: "+ Spawn Instances",
+  });
+
+  btnSpawn.on("click", this.initiate.bind(this));
+  containerEl.append(btnSpawn.element);
 
   // --- bake button the instances as editor items
   var btnAdd = new ui.Button({
@@ -524,11 +470,7 @@ UranusEditorEntitiesDistribute.prototype.bakeInstancesInEditor = function () {
     var scale = entity.getLocalScale();
 
     newItem.set("enabled", true);
-    newItem.set("position", [
-      localPosition.x,
-      localPosition.y,
-      localPosition.z,
-    ]);
+    newItem.set("position", [localPosition.x, localPosition.y, localPosition.z]);
     newItem.set("rotation", [angles.x, angles.y, angles.z]);
     newItem.set("scale", [scale.x, scale.y, scale.z]);
 
@@ -564,20 +506,17 @@ UranusEditorEntitiesDistribute.prototype.clearEditorInstances = function () {
   });
 };
 
-UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (
-  property,
-  value
-) {
-  if (this.running === true) return;
+// UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, value) {
+//   if (this.running === true) return;
 
-  if (property === "runBatcher") {
-    this.executeBatcher();
-    return;
-  }
+//   if (property === "runBatcher") {
+//     this.executeBatcher();
+//     return;
+//   }
 
-  this.onDestroy();
+//   this.onDestroy();
 
-  if (this.inEditor === true) {
-    this.editorInitialize(true);
-  }
-};
+//   if (this.inEditor === true) {
+//     this.editorInitialize(true);
+//   }
+// };

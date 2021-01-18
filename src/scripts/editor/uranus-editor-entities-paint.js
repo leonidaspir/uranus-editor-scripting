@@ -48,18 +48,12 @@ UranusEditorEntitiesPaint.attributes.add("projectOffset", {
   type: "boolean",
   default: true,
   title: "Project Offset",
-  description:
-    "If enabled the offset will be projected to the final calculated scale of the instance.",
+  description: "If enabled the offset will be projected to the final calculated scale of the instance.",
 });
 
 UranusEditorEntitiesPaint.attributes.add("rotateThem", {
   type: "string",
-  enum: [
-    { None: "none" },
-    { "X axis": "x" },
-    { "Y axis": "y" },
-    { "Z axis": "z" },
-  ],
+  enum: [{ None: "none" }, { "X axis": "x" }, { "Y axis": "y" }, { "Z axis": "z" }],
   default: "y",
   title: "Rotate Them",
 });
@@ -73,30 +67,26 @@ UranusEditorEntitiesPaint.attributes.add("removeComponents", {
   type: "string",
   default: "model",
   title: "Remove Components",
-  description:
-    "A comma separated list of entity compoments to be removed when spawning an instance. When using HW instancing the model component should be removed.",
+  description: "A comma separated list of entity compoments to be removed when spawning an instance. When using HW instancing the model component should be removed.",
 });
 
 UranusEditorEntitiesPaint.attributes.add("streamingFile", {
   type: "asset",
   title: "Streaming File",
-  description:
-    "If a json or binary asset file is provided, instead of spawning new entities in the hierarchy, all translation info will be saved to the file. This is ideal when spawning a huge number of static instances.",
+  description: "If a json or binary asset file is provided, instead of spawning new entities in the hierarchy, all translation info will be saved to the file. This is ideal when spawning a huge number of static instances.",
 });
 
 UranusEditorEntitiesPaint.attributes.add("streamingPrecision", {
   type: "number",
   default: 1e3,
   title: "Streaming Precision",
-  description:
-    "Less digits provide smaller precision but also smaller file sizes",
+  description: "Less digits provide smaller precision but also smaller file sizes",
 });
 
 UranusEditorEntitiesPaint.attributes.add("playcanvasToken", {
   type: "string",
   title: "Playcanvas Token",
-  description:
-    "A valid Playcanvas Rest API access token to be used for updating the streaming file.",
+  description: "A valid Playcanvas Rest API access token to be used for updating the streaming file.",
 });
 
 UranusEditorEntitiesPaint.attributes.add("hardwareInstancing", {
@@ -120,24 +110,29 @@ UranusEditorEntitiesPaint.attributes.add("hideAfter", {
   type: "number",
   default: 0,
   title: "Far Clip",
-  description:
-    "Cull the instance after a distance from camera. Set to 0 to disable.",
+  description: "Cull the instance after a distance from camera. Set to 0 to disable.",
+});
+
+UranusEditorEntitiesPaint.attributes.add("fadeoutThreshold", {
+  type: "number",
+  default: 1,
+  min: 1,
+  title: "Fadeout Threshold",
+  description: "A factor to be applied to the distance passed to the fadeout shader to provide finer control over the effect.",
 });
 
 UranusEditorEntitiesPaint.attributes.add("perInstanceCull", {
   type: "boolean",
   default: true,
   title: "Per Instance Cull",
-  description:
-    "If enabled instances will be culled based only on the visibility of their current cell. This is a great way to increase performance when a huge number of instances is parsed.",
+  description: "If enabled instances will be culled based only on the visibility of their current cell. This is a great way to increase performance when a huge number of instances is parsed.",
 });
 
 UranusEditorEntitiesPaint.attributes.add("useLOD", {
   type: "boolean",
   default: false,
   title: "Use LOD",
-  description:
-    "A LOD system that works only when HW instancing is enabled. All LOD levels should be added as a first level entity to the spawn instance, with a model component and the 'uranus-lod-entity' tag.",
+  description: "A LOD system that works only when HW instancing is enabled. All LOD levels should be added as a first level entity to the spawn instance, with a model component and the 'uranus-lod-entity' tag.",
 });
 
 UranusEditorEntitiesPaint.attributes.add("lodLevels", {
@@ -150,16 +145,14 @@ UranusEditorEntitiesPaint.attributes.add("lodThreshold", {
   type: "number",
   default: 0.9,
   title: "LOD Threshold",
-  description:
-    "The amount of distance range where two LODs can overlap. Useful when doing LOD fade in/out effects.",
+  description: "The amount of distance range where two LODs can overlap. Useful when doing LOD fade in/out effects.",
 });
 
 UranusEditorEntitiesPaint.attributes.add("isStatic", {
   type: "boolean",
   default: false,
   title: "Is Static",
-  description:
-    "When hardware instancing is enabled, checking this flag will provide a performance increase since no translations will be updated on runtime. It requires a culling camera to be referenced and Per Intance Cull to be enabled.",
+  description: "When hardware instancing is enabled, checking this flag will provide a performance increase since no translations will be updated on runtime. It requires a culling camera to be referenced and Per Intance Cull to be enabled.",
 });
 
 UranusEditorEntitiesPaint.attributes.add("densityReduce", {
@@ -168,8 +161,7 @@ UranusEditorEntitiesPaint.attributes.add("densityReduce", {
   title: "Density Reduce",
   min: 0,
   precision: 0,
-  description:
-    "Number of instances to be skipped for each instance rendered, useful to increase the performance in lower end devices.",
+  description: "Number of instances to be skipped for each instance rendered, useful to increase the performance in lower end devices.",
 });
 
 UranusEditorEntitiesPaint.attributes.add("densityIncrease", {
@@ -178,24 +170,21 @@ UranusEditorEntitiesPaint.attributes.add("densityIncrease", {
   title: "Density Increase",
   min: 0,
   precision: 0,
-  description:
-    "Number of instances to be randomnly added for each data instance, useful to increase complexity without massive data sets. Works only when streaming data.",
+  description: "Number of instances to be randomnly added for each data instance, useful to increase complexity without massive data sets. Works only when streaming data.",
 });
 
 UranusEditorEntitiesPaint.attributes.add("densityIncreaseRadius", {
   type: "number",
   default: 0,
   title: "Density Increase Radius",
-  description:
-    "The radius at which to spawn a random instance using the data instance as center.",
+  description: "The radius at which to spawn a random instance using the data instance as center.",
 });
 
 UranusEditorEntitiesPaint.attributes.add("densityIncreaseRaycast", {
   type: "boolean",
   default: true,
   title: "Density Increase Raycast",
-  description:
-    "If set to true a physics raycast will be cast to get the Y pos with accuracy, otherwise the same height will be used.",
+  description: "If set to true a physics raycast will be cast to get the Y pos with accuracy, otherwise the same height will be used.",
 });
 
 UranusEditorEntitiesPaint.zeroBuffer = new Float32Array();
@@ -215,17 +204,8 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
 
   this.tempSphere = { center: null, radius: 0.5 };
 
-  this.lodDistance = [
-    this.lodLevels.x * this.lodLevels.x,
-    this.lodLevels.y * this.lodLevels.y,
-    this.lodLevels.z * this.lodLevels.z,
-  ];
-  this.lodDistanceRaw = [
-    this.lodLevels.x,
-    this.lodLevels.y,
-    this.lodLevels.z,
-    this.hideAfter,
-  ];
+  this.lodDistance = [this.lodLevels.x * this.lodLevels.x, this.lodLevels.y * this.lodLevels.y, this.lodLevels.z * this.lodLevels.z];
+  this.lodDistanceRaw = [this.lodLevels.x, this.lodLevels.y, this.lodLevels.z, this.hideAfter];
 
   this.spawnEntities = [];
   this.meshInstances = undefined;
@@ -237,9 +217,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     scale: new pc.Vec3(),
   };
 
-  this.hiddenCamera = this.cullingCamera
-    ? this.cullingCamera.clone()
-    : undefined;
+  this.hiddenCamera = this.cullingCamera ? this.cullingCamera.clone() : undefined;
 
   if (this.hideAfter > 0 && this.hiddenCamera) {
     this.hiddenCamera.camera.farClip = this.hideAfter;
@@ -266,7 +244,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
   );
 
   // --- events
-  if (Uranus.Editor.inEditor() === false) {
+  if (window.Uranus && Uranus.Editor.inEditor() === false) {
     this.on("attr", this.editorAttrChange, this);
   }
 
@@ -331,15 +309,10 @@ UranusEditorEntitiesPaint.prototype.editorInitialize = function () {
 
   // --- add custom CSS
   var sheet = window.document.styleSheets[0];
-  sheet.insertRule(
-    ".active-entities-painter-button { background-color: #f60 !important; color: white !important; }",
-    sheet.cssRules.length
-  );
+  sheet.insertRule(".active-entities-painter-button { background-color: #f60 !important; color: white !important; }", sheet.cssRules.length);
 };
 
-UranusEditorEntitiesPaint.prototype.prepareComponentsToClear = function (
-  value
-) {
+UranusEditorEntitiesPaint.prototype.prepareComponentsToClear = function (value) {
   this.componentsToClear = [];
 
   if (value && value.length > 0) {
@@ -355,9 +328,7 @@ UranusEditorEntitiesPaint.prototype.prepareComponentsToClear = function (
 };
 
 // --- editor script methods
-UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (
-  element
-) {
+UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (element) {
   var containerEl = element.firstChild;
 
   // --- bake button the instances as editor items
@@ -436,10 +407,7 @@ UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (
   containerEl.append(btnClearInstances.element);
 };
 
-UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
-  property,
-  value
-) {
+UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value) {
   if (Uranus.Editor.inEditor()) {
     if (this.building) {
       this.setGizmoState(false);
@@ -468,8 +436,7 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
   if (this.cullingCamera && property === "hideAfter") {
     var hideAfter = value;
 
-    this.hiddenCamera.camera.farClip =
-      hideAfter > 0 ? hideAfter : this.cullingCamera.camera.farClip;
+    this.hiddenCamera.camera.farClip = hideAfter > 0 ? hideAfter : this.cullingCamera.camera.farClip;
 
     this.lodDistanceRaw[3] = value;
 
@@ -479,19 +446,12 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (
   }
 
   if (property === "lodLevels") {
-    this.lodDistance = [
-      value.x * value.x,
-      value.y * value.y,
-      value.z * value.z,
-    ];
+    this.lodDistance = [value.x * value.x, value.y * value.y, value.z * value.z];
     this.lodDistanceRaw = [value.x, value.y, value.z, this.hideAfter];
   }
 };
 
-UranusEditorEntitiesPaint.prototype.setBuildingState = function (
-  btnBuild,
-  dontTrigger
-) {
+UranusEditorEntitiesPaint.prototype.setBuildingState = function (btnBuild, dontTrigger) {
   if (this.buildButtonState) {
     if (!dontTrigger) this.startBuilding();
 
@@ -503,10 +463,7 @@ UranusEditorEntitiesPaint.prototype.setBuildingState = function (
   }
 };
 
-UranusEditorEntitiesPaint.prototype.setEraseState = function (
-  btnErase,
-  dontTrigger
-) {
+UranusEditorEntitiesPaint.prototype.setEraseState = function (btnErase, dontTrigger) {
   if (this.eraseButtonState) {
     if (!dontTrigger) this.startBuilding();
 
@@ -566,11 +523,7 @@ UranusEditorEntitiesPaint.prototype.setGizmoState = function (state) {
       receiveShadows: false,
     });
     this.gizmo.model.material = this.gizmoMaterial;
-    this.gizmo.setLocalScale(
-      this.brushDistance * 2,
-      this.brushDistance * 2,
-      this.brushDistance * 2
-    );
+    this.gizmo.setLocalScale(this.brushDistance * 2, this.brushDistance * 2, this.brushDistance * 2);
     this.app.root.addChild(this.gizmo);
   } else {
     if (this.gizmo) {
@@ -654,10 +607,7 @@ UranusEditorEntitiesPaint.prototype.onMouseUp = function (e) {
   this.mouseDown = false;
 };
 
-UranusEditorEntitiesPaint.prototype.parseMousePoint = function (
-  screenPosX,
-  screenPosY
-) {
+UranusEditorEntitiesPaint.prototype.parseMousePoint = function (screenPosX, screenPosY) {
   var camera = editor.call("camera:current").camera;
 
   var start = camera.screenToWorld(screenPosX, screenPosY, camera.nearClip);
@@ -693,10 +643,7 @@ UranusEditorEntitiesPaint.prototype.clearEntitiesInPoint = function (point) {
       function (guid) {
         var item = editor.call("entities:get", guid);
 
-        if (
-          item &&
-          center.distance(item.entity.getPosition()) <= this.brushDistance
-        ) {
+        if (item && center.distance(item.entity.getPosition()) <= this.brushDistance) {
           editor.call("entities:removeEntity", item);
         }
       }.bind(this)
@@ -722,10 +669,7 @@ UranusEditorEntitiesPaint.prototype.clearEntitiesInPoint = function (point) {
   }
 };
 
-UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (
-  point,
-  normal
-) {
+UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (point, normal) {
   this.currentPosition.set(point.x, point.y, point.z);
 
   // check if we are away of the config radius
@@ -741,16 +685,8 @@ UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (
       this.getRandomPositionInRadius(this.currentPosition, this.brushRadius);
 
       // --- get elevation under the point
-      this.vec.set(
-        this.randomPosition.x,
-        this.randomPosition.y + 10000,
-        this.randomPosition.z
-      );
-      this.vec1.set(
-        this.randomPosition.x,
-        this.randomPosition.y - 10000,
-        this.randomPosition.z
-      );
+      this.vec.set(this.randomPosition.x, this.randomPosition.y + 10000, this.randomPosition.z);
+      this.vec1.set(this.randomPosition.x, this.randomPosition.y - 10000, this.randomPosition.z);
 
       var result = this.app.systems.rigidbody.raycastFirst(this.vec, this.vec1);
 
@@ -770,13 +706,7 @@ UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (
 
   this.lastPosition.set(point.x, point.y, point.z);
 
-  Uranus.Editor.interface.logMessage(
-    'Entities Painter spawned <strong style="color: lightred;">' +
-      count +
-      '</strong> instances for <strong style="color: cyan;">' +
-      this.entity.name +
-      "</strong>"
-  );
+  Uranus.Editor.interface.logMessage('Entities Painter spawned <strong style="color: lightred;">' + count + '</strong> instances for <strong style="color: cyan;">' + this.entity.name + "</strong>");
 
   // --- update renderer if required
   if (this.hardwareInstancing) {
@@ -784,17 +714,12 @@ UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (
   }
 };
 
-UranusEditorEntitiesPaint.prototype.getRandomPositionInRadius = function (
-  center,
-  radius
-) {
+UranusEditorEntitiesPaint.prototype.getRandomPositionInRadius = function (center, radius) {
   var a = Math.random();
   var b = Math.random();
 
-  this.randomPosition.x =
-    center.x + b * radius * Math.cos((2 * Math.PI * a) / b);
-  this.randomPosition.z =
-    center.z + b * radius * Math.sin((2 * Math.PI * a) / b);
+  this.randomPosition.x = center.x + b * radius * Math.cos((2 * Math.PI * a) / b);
+  this.randomPosition.z = center.z + b * radius * Math.sin((2 * Math.PI * a) / b);
 
   return this.randomPosition;
 };
@@ -850,8 +775,7 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
       item.get("children").forEach(function (child) {
         var removeEntity = editor.call("entities:get", child);
 
-        if (!removeEntity || removeEntity.get("name").indexOf("_LOD") === -1)
-          return;
+        if (!removeEntity || removeEntity.get("name").indexOf("_LOD") === -1) return;
 
         editor.call("entities:removeEntity", removeEntity);
       });
@@ -879,34 +803,19 @@ UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
   } else {
     // --- save streaming info
     this.streamingData.push(bankIndex);
-    this.streamingData.push(
-      this.roundNumber(finalPosition.x, this.streamingPrecision)
-    );
-    this.streamingData.push(
-      this.roundNumber(finalPosition.y, this.streamingPrecision)
-    );
-    this.streamingData.push(
-      this.roundNumber(finalPosition.z, this.streamingPrecision)
-    );
-    this.streamingData.push(
-      this.roundNumber(angles.x, this.streamingPrecision)
-    );
-    this.streamingData.push(
-      this.roundNumber(angles.y, this.streamingPrecision)
-    );
-    this.streamingData.push(
-      this.roundNumber(angles.z, this.streamingPrecision)
-    );
+    this.streamingData.push(this.roundNumber(finalPosition.x, this.streamingPrecision));
+    this.streamingData.push(this.roundNumber(finalPosition.y, this.streamingPrecision));
+    this.streamingData.push(this.roundNumber(finalPosition.z, this.streamingPrecision));
+    this.streamingData.push(this.roundNumber(angles.x, this.streamingPrecision));
+    this.streamingData.push(this.roundNumber(angles.y, this.streamingPrecision));
+    this.streamingData.push(this.roundNumber(angles.z, this.streamingPrecision));
     this.streamingData.push(this.roundNumber(scale.x, this.streamingPrecision));
     this.streamingData.push(this.roundNumber(scale.y, this.streamingPrecision));
     this.streamingData.push(this.roundNumber(scale.z, this.streamingPrecision));
   }
 };
 
-UranusEditorEntitiesPaint.prototype.getBrushPosition = function (
-  position,
-  scale
-) {
+UranusEditorEntitiesPaint.prototype.getBrushPosition = function (position, scale) {
   var offset = this.vec4.copy(this.posOffset);
 
   // --- if required project offset to scale
@@ -916,11 +825,7 @@ UranusEditorEntitiesPaint.prototype.getBrushPosition = function (
     offset.z *= scale.z;
   }
 
-  return this.vec5.set(
-    position.x + offset.x,
-    position.y + offset.y,
-    position.z + offset.z
-  );
+  return this.vec5.set(position.x + offset.x, position.y + offset.y, position.z + offset.z);
 };
 
 UranusEditorEntitiesPaint.prototype.getBrushScale = function (referenceEntity) {
@@ -931,18 +836,13 @@ UranusEditorEntitiesPaint.prototype.getBrushScale = function (referenceEntity) {
   return scale;
 };
 
-UranusEditorEntitiesPaint.prototype.getBrushAngles = function (
-  referenceEntity,
-  normal
-) {
+UranusEditorEntitiesPaint.prototype.getBrushAngles = function (referenceEntity, normal) {
   var angles = this.vec1;
   if (this.alignThem) {
     // --- align in the direction of the hit normal
     this.setMat4Forward(this.matrix, normal, pc.Vec3.UP);
     this.quat.setFromMat4(this.matrix);
-    angles
-      .copy(this.quat.getEulerAngles())
-      .sub(referenceEntity.getLocalEulerAngles());
+    angles.copy(this.quat.getEulerAngles()).sub(referenceEntity.getLocalEulerAngles());
   } else {
     angles.copy(referenceEntity.getLocalEulerAngles());
   }
@@ -1031,20 +931,14 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
 
   // --- get a list of the spawn entities to be instanced
   if (this.spawnEntity) {
-    this.spawnEntities =
-      this.spawnEntity.children[0] instanceof pc.Entity
-        ? this.spawnEntity.children
-        : [this.spawnEntity];
+    this.spawnEntities = this.spawnEntity.children[0] instanceof pc.Entity ? this.spawnEntity.children : [this.spawnEntity];
   } else {
     // --- use the children as spawn entities, names for instanced entities should be the same
     var spawnNames = [];
 
     this.spawnEntities = this.entity.find(
       function (entity) {
-        if (
-          entity instanceof pc.Entity &&
-          spawnNames.indexOf(entity.name) === -1
-        ) {
+        if (entity instanceof pc.Entity && spawnNames.indexOf(entity.name) === -1) {
           spawnNames.push(entity.name);
           return true;
         }
@@ -1070,11 +964,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
 
   var i, j;
 
-  for (
-    var spawnIndex = 0;
-    spawnIndex < this.spawnEntities.length;
-    spawnIndex++
-  ) {
+  for (var spawnIndex = 0; spawnIndex < this.spawnEntities.length; spawnIndex++) {
     var spawnEntity = this.spawnEntities[spawnIndex];
 
     // --- get the instances / translation data
@@ -1110,15 +1000,9 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
 
       // --- get per payload references
       //var spawnPos = lodEntity.getPosition();
-      var spawnScale = this.spawnEntity
-        ? lodEntity.getLocalScale()
-        : this.vecOne;
+      var spawnScale = this.spawnEntity ? lodEntity.getLocalScale() : this.vecOne;
 
-      for (
-        var meshInstanceIndex = 0;
-        meshInstanceIndex < lodEntity.model.meshInstances.length;
-        meshInstanceIndex++
-      ) {
+      for (var meshInstanceIndex = 0; meshInstanceIndex < lodEntity.model.meshInstances.length; meshInstanceIndex++) {
         var meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
         meshInstance.visible = false;
 
@@ -1137,11 +1021,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
         var payload = {
           baseEntity: lodEntity,
           instances: instances,
-          meshInstance: new pc.MeshInstance(
-            meshInstance.node.clone(),
-            meshInstance.mesh,
-            meshInstance.material
-          ),
+          meshInstance: new pc.MeshInstance(meshInstance.node.clone(), meshInstance.mesh, meshInstance.material),
           meshRotation: meshRotation,
           matrices: [],
           matricesPerCell: {},
@@ -1166,40 +1046,22 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
             activeDensity = 0;
           }
 
-          var instance = this.getInstanceData(
-            instances[i],
-            spawnEntities,
-            true
-          );
+          var instance = this.getInstanceData(instances[i], spawnEntities, true);
           instancesData.push(instance);
 
           if (this.densityIncrease > 0 && this.streamingFile) {
             for (j = 0; j < Math.floor(this.densityIncrease); j++) {
-              var newPosition = this.getRandomPositionInRadius(
-                instance.position,
-                this.densityIncreaseRadius
-              );
+              var newPosition = this.getRandomPositionInRadius(instance.position, this.densityIncreaseRadius);
 
               var height = instance.position.y;
               var normal;
 
               // --- get elevation under the point
               if (this.densityIncreaseRaycast) {
-                this.vec.set(
-                  newPosition.x,
-                  newPosition.y + 10000,
-                  newPosition.z
-                );
-                this.vec1.set(
-                  newPosition.x,
-                  newPosition.y - 10000,
-                  newPosition.z
-                );
+                this.vec.set(newPosition.x, newPosition.y + 10000, newPosition.z);
+                this.vec1.set(newPosition.x, newPosition.y - 10000, newPosition.z);
 
-                var result = this.app.systems.rigidbody.raycastFirst(
-                  this.vec,
-                  this.vec1
-                );
+                var result = this.app.systems.rigidbody.raycastFirst(this.vec, this.vec1);
 
                 if (result && result.entity.name.indexOf("Terrain") > -1) {
                   height = result.point.y;
@@ -1223,11 +1085,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
               var newInstance = {
                 name: instance.name,
                 position: new pc.Vec3().copy(finalPosition),
-                rotation: new pc.Quat().setFromEulerAngles(
-                  angles.x,
-                  angles.y,
-                  angles.z
-                ),
+                rotation: new pc.Quat().setFromEulerAngles(angles.x, angles.y, angles.z),
                 scale: new pc.Vec3().copy(scale),
               };
               instancesData.push(newInstance);
@@ -1247,7 +1105,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
           // --- check if we are interested in this mesh instance
           if (instance.name !== spawnEntity.name) continue;
 
-          var scale = this.getInstanceScale(vec2, instance, spawnScale);
+          var scale = this.getInstanceScale(vec2, instance, spawnScale, meshInstance);
           // var position = this.getInstancePosition(
           //   vec1,
           //   instance,
@@ -1255,22 +1113,12 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
           //   scale
           // );
 
-          var matrix = this.getInstanceMatrix(
-            new pc.Mat4(),
-            quat,
-            instance,
-            instance.position,
-            meshRotation,
-            scale
-          );
+          var matrix = this.getInstanceMatrix(new pc.Mat4(), quat, instance, instance.position, meshRotation, scale);
 
           payload.matrices.push(matrix);
 
           // --- create a bounding box for this instance
-          matrix.sphere = new pc.BoundingSphere(
-            instance.position.clone(),
-            meshSphereRadius
-          );
+          matrix.sphere = new pc.BoundingSphere(instance.position.clone(), meshSphereRadius);
 
           // --- add instance to total matrices list
           var cellPos = this.getCellPos(vec, instance.position);
@@ -1305,11 +1153,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
       // --- prepare the instances buffers
       payload.totalBuffer = new ArrayBuffer(payload.matrices.length * 16 * 4);
       payload.culledMatrices = new Float32Array(payload.matrices.length * 16);
-      payload.totalMatrices = new Float32Array(
-        payload.totalBuffer,
-        0,
-        payload.matrices.length * 16
-      );
+      payload.totalMatrices = new Float32Array(payload.totalBuffer, 0, payload.matrices.length * 16);
       var totalMatrices = payload.totalMatrices;
       var totalMatrixIndex = 0;
 
@@ -1330,11 +1174,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
           }
         }
 
-        var cellMatrices = new Float32Array(
-          payload.totalBuffer,
-          startCellIndex * 4,
-          endCellIndex - startCellIndex
-        );
+        var cellMatrices = new Float32Array(payload.totalBuffer, startCellIndex * 4, endCellIndex - startCellIndex);
 
         startCellIndex = endCellIndex;
 
@@ -1343,17 +1183,9 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
       }
 
       // --- create payload vertex buffer
-      var bufferArray = this.cullingCamera
-        ? UranusEditorEntitiesPaint.zeroBuffer
-        : payload.totalMatrices;
+      var bufferArray = this.cullingCamera ? UranusEditorEntitiesPaint.zeroBuffer : payload.totalMatrices;
 
-      payload.vertexBuffer = new pc.VertexBuffer(
-        this.app.graphicsDevice,
-        pc.VertexFormat.defaultInstancingFormat,
-        this.cullingCamera ? 0 : bufferArray.length / 16,
-        pc.BUFFER_STATIC,
-        this.cullingCamera ? UranusEditorEntitiesPaint.zeroBuffer : bufferArray
-      );
+      payload.vertexBuffer = new pc.VertexBuffer(this.app.graphicsDevice, pc.VertexFormat.defaultInstancingFormat, this.cullingCamera ? 0 : bufferArray.length / 16, pc.BUFFER_STATIC, this.cullingCamera ? UranusEditorEntitiesPaint.zeroBuffer : bufferArray);
 
       var meshInstance = payload.meshInstance;
 
@@ -1366,14 +1198,8 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
 
       // --- add mesh instance to render lists
       var modelComponent = payload.baseEntity.model;
-      meshInstance.castShadow =
-        meshInstance.material.castShadows !== undefined
-          ? meshInstance.material.castShadows
-          : modelComponent.castShadows;
-      meshInstance.receiveShadow =
-        meshInstance.material.receiveShadows !== undefined
-          ? meshInstance.material.receiveShadows
-          : modelComponent.receiveShadows;
+      meshInstance.castShadow = meshInstance.material.castShadows !== undefined ? meshInstance.material.castShadows : modelComponent.castShadows;
+      meshInstance.receiveShadow = meshInstance.material.receiveShadows !== undefined ? meshInstance.material.receiveShadows : modelComponent.receiveShadows;
       meshInstance.cull = false;
 
       for (j = 0; j < modelComponent.layers.length; j++) {
@@ -1392,12 +1218,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
   // console.log(this.entity.name, this.payloads);
 };
 
-UranusEditorEntitiesPaint.prototype.getMeshInstancePosOffset = function (
-  offset,
-  center,
-  spawnPos,
-  spawnScale
-) {
+UranusEditorEntitiesPaint.prototype.getMeshInstancePosOffset = function (offset, center, spawnPos, spawnScale) {
   offset.copy(center).sub(spawnPos);
 
   offset.x /= spawnScale.x;
@@ -1407,12 +1228,7 @@ UranusEditorEntitiesPaint.prototype.getMeshInstancePosOffset = function (
   return offset;
 };
 
-UranusEditorEntitiesPaint.prototype.getInstancePosition = function (
-  position,
-  instance,
-  offset,
-  scale
-) {
+UranusEditorEntitiesPaint.prototype.getInstancePosition = function (position, instance, offset, scale) {
   // --- calculate pivot point position
   position.copy(instance.position);
   position.x += offset.x * scale.x;
@@ -1422,24 +1238,19 @@ UranusEditorEntitiesPaint.prototype.getInstancePosition = function (
   return position;
 };
 
-UranusEditorEntitiesPaint.prototype.getInstanceScale = function (
-  scale,
-  instance,
-  spawnScale
-) {
+UranusEditorEntitiesPaint.prototype.getInstanceScale = function (scale, instance, spawnScale, meshInstance) {
   scale.copy(instance.scale).mul(spawnScale).scale(0.01);
+
+  // --- apply node scale
+  var nodeScale = meshInstance.node.getLocalScale();
+  scale.x *= nodeScale.x;
+  scale.y *= nodeScale.z;
+  scale.z *= nodeScale.y;
 
   return scale.set(scale.x, scale.z, scale.y);
 };
 
-UranusEditorEntitiesPaint.prototype.getInstanceMatrix = function (
-  matrix,
-  quat,
-  instance,
-  position,
-  rotation,
-  scale
-) {
+UranusEditorEntitiesPaint.prototype.getInstanceMatrix = function (matrix, quat, instance, position, rotation, scale) {
   // --- calculate angles
   quat.copy(instance.rotation).mul(rotation);
 
@@ -1454,10 +1265,7 @@ UranusEditorEntitiesPaint.prototype.getVisibilityCell = function (cellPos) {
   // --- if cell doesn't exist, create it once
   if (!cell) {
     var halfExtents = new pc.Vec3().copy(this.cellSize).scale(2);
-    this.cells[cellGuid] = new pc.BoundingBox(
-      cellPos.clone(),
-      halfExtents.clone()
-    );
+    this.cells[cellGuid] = new pc.BoundingBox(cellPos.clone(), halfExtents.clone());
     cell = this.cells[cellGuid];
 
     cell.guid = cellGuid;
@@ -1492,6 +1300,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
   var isStatic = this.isStatic;
   var lodLevels = this.lodLevels;
   var lodLevelsEnabled = this.lodLevelsEnabled;
+  var fadeoutThreshold = this.fadeoutThreshold;
   var lodThreshold = this.lodThreshold;
   var lodDistanceRaw = this.lodDistanceRaw;
   var vecOne = this.vecOne;
@@ -1524,33 +1333,15 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
       var cell = cells[cellGuid];
       cell.isVisible = frustum.containsSphere(cell.sphere);
       cell.distanceFromCamera = this.distanceSq(cameraPos, cell.center);
-      cell.activeLOD = useLOD
-        ? this.getActiveLOD(
-            cell.distanceFromCamera,
-            lodDistance,
-            this.lodLevelsEnabled
-          )
-        : 0;
+      cell.activeLOD = useLOD ? this.getActiveLOD(cell.distanceFromCamera, lodDistance, this.lodLevelsEnabled) : 0;
     }
   }
 
   for (lodIndex = 0; lodIndex < payloads.length; lodIndex++) {
     // --- prepare lod levels
-    lodDistanceRaw[2] = lodLevelsEnabled[3]
-      ? lodLevels.z
-      : hideAfter > 0
-      ? hideAfter
-      : 100000;
-    lodDistanceRaw[1] = lodLevelsEnabled[2]
-      ? lodLevels.y
-      : hideAfter > 0
-      ? hideAfter
-      : 100000;
-    lodDistanceRaw[0] = lodLevelsEnabled[1]
-      ? lodLevels.x
-      : hideAfter > 0
-      ? hideAfter
-      : 100000;
+    lodDistanceRaw[2] = lodLevelsEnabled[3] ? lodLevels.z : hideAfter > 0 ? hideAfter : 100000;
+    lodDistanceRaw[1] = lodLevelsEnabled[2] ? lodLevels.y : hideAfter > 0 ? hideAfter : 100000;
+    lodDistanceRaw[0] = lodLevelsEnabled[1] ? lodLevels.x : hideAfter > 0 ? hideAfter : 100000;
 
     for (i = 0; i < payloads[lodIndex].length; i++) {
       var payload = payloads[lodIndex][i];
@@ -1559,21 +1350,9 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
       if (!bufferArray) continue;
 
       // --- update effects uniforms
-      payload.meshInstance.setParameter(
-        "uranusFadeOutDistance",
-        lodDistanceRaw[lodIndex]
-      );
+      payload.meshInstance.setParameter("uranusFadeOutDistance", lodDistanceRaw[lodIndex] * fadeoutThreshold);
 
-      payload.meshInstance.setParameter(
-        "uranusFadeInDistance",
-        lodIndex > 0 ? lodDistanceRaw[lodIndex - 1] : 0
-      );
-
-      payload.meshInstance.setParameter("uranusViewPosition", [
-        cameraPos.x,
-        cameraPos.y,
-        cameraPos.z,
-      ]);
+      payload.meshInstance.setParameter("uranusViewPosition", [cameraPos.x, cameraPos.y, cameraPos.z]);
 
       var lodEntity = payload.baseEntity;
       var spawnScale, spawnPos, offset;
@@ -1642,14 +1421,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
             matrixInstance.sphere.center.copy(instance.position);
 
-            this.getInstanceMatrix(
-              matrixInstance,
-              quat,
-              instance,
-              instance.position,
-              payload.meshRotation,
-              scale
-            );
+            this.getInstanceMatrix(matrixInstance, quat, instance, instance.position, payload.meshRotation, scale);
           }
 
           // --- frustum culling
@@ -1659,18 +1431,9 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 
           // --- LOD culling
           if (useLOD === true && visible > 0) {
-            var distanceFromCamera = this.distanceSq(
-              cameraPos,
-              matrixInstance.sphere.center
-            );
+            var distanceFromCamera = this.distanceSq(cameraPos, matrixInstance.sphere.center);
 
-            visible = this.checkActiveLOD(
-              distanceFromCamera,
-              lodDistance,
-              lodIndex,
-              lodLevelsEnabled,
-              lodThreshold
-            );
+            visible = this.checkActiveLOD(distanceFromCamera, lodDistance, lodIndex, lodLevelsEnabled, lodThreshold);
           }
 
           if (visible > 0) {
@@ -1693,9 +1456,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
       app.graphicsDevice._vram.vb -= vertexBuffer.numBytes;
 
       var format = vertexBuffer.format;
-      vertexBuffer.numBytes = format.verticesByteSize
-        ? format.verticesByteSize
-        : format.size * instancesCount;
+      vertexBuffer.numBytes = format.verticesByteSize ? format.verticesByteSize : format.size * instancesCount;
 
       // stats update
       app.graphicsDevice._vram.vb += vertexBuffer.numBytes;
@@ -1709,22 +1470,12 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
   }
 };
 
-UranusEditorEntitiesPaint.prototype.getActiveLOD = function (
-  distanceFromCamera,
-  lodDistance,
-  lodLevelsEnabled
-) {
+UranusEditorEntitiesPaint.prototype.getActiveLOD = function (distanceFromCamera, lodDistance, lodLevelsEnabled) {
   var activeLodIndex = 0;
 
-  if (
-    distanceFromCamera >= lodDistance[0] &&
-    (distanceFromCamera < lodDistance[1] || lodLevelsEnabled[2] === false)
-  ) {
+  if (distanceFromCamera >= lodDistance[0] && (distanceFromCamera < lodDistance[1] || lodLevelsEnabled[2] === false)) {
     activeLodIndex = 1;
-  } else if (
-    distanceFromCamera >= lodDistance[1] &&
-    (distanceFromCamera < lodDistance[2] || lodLevelsEnabled[3] === false)
-  ) {
+  } else if (distanceFromCamera >= lodDistance[1] && (distanceFromCamera < lodDistance[2] || lodLevelsEnabled[3] === false)) {
     activeLodIndex = 2;
   } else if (distanceFromCamera >= lodDistance[2]) {
     activeLodIndex = 3;
@@ -1733,45 +1484,21 @@ UranusEditorEntitiesPaint.prototype.getActiveLOD = function (
   return activeLodIndex;
 };
 
-UranusEditorEntitiesPaint.prototype.checkActiveLOD = function (
-  distanceFromCamera,
-  lodDistance,
-  lodIndexToCheck,
-  lodLevelsEnabled,
-  lodThreshold
-) {
-  if (
-    lodIndexToCheck === 0 &&
-    (distanceFromCamera < lodDistance[0] || lodLevelsEnabled[1] === false)
-  ) {
+UranusEditorEntitiesPaint.prototype.checkActiveLOD = function (distanceFromCamera, lodDistance, lodIndexToCheck, lodLevelsEnabled, lodThreshold) {
+  if (lodIndexToCheck === 0 && (distanceFromCamera < lodDistance[0] || lodLevelsEnabled[1] === false)) {
     return 1;
-  } else if (
-    lodIndexToCheck === 1 &&
-    distanceFromCamera >= lodDistance[0] * lodThreshold &&
-    (distanceFromCamera < lodDistance[1] || lodLevelsEnabled[2] === false)
-  ) {
+  } else if (lodIndexToCheck === 1 && distanceFromCamera >= lodDistance[0] * lodThreshold && (distanceFromCamera < lodDistance[1] || lodLevelsEnabled[2] === false)) {
     return 1;
-  } else if (
-    lodIndexToCheck === 2 &&
-    distanceFromCamera >= lodDistance[1] * lodThreshold &&
-    (distanceFromCamera < lodDistance[2] || lodLevelsEnabled[3] === false)
-  ) {
+  } else if (lodIndexToCheck === 2 && distanceFromCamera >= lodDistance[1] * lodThreshold && (distanceFromCamera < lodDistance[2] || lodLevelsEnabled[3] === false)) {
     return 1;
-  } else if (
-    lodIndexToCheck === 3 &&
-    distanceFromCamera >= lodDistance[2] * lodThreshold
-  ) {
+  } else if (lodIndexToCheck === 3 && distanceFromCamera >= lodDistance[2] * lodThreshold) {
     return 1;
   }
 
   return 0;
 };
 
-UranusEditorEntitiesPaint.prototype.setMat4Forward = function (
-  mat4,
-  forward,
-  up
-) {
+UranusEditorEntitiesPaint.prototype.setMat4Forward = function (mat4, forward, up) {
   var x = this.x;
   var y = this.y;
   var z = this.z;
@@ -1806,9 +1533,7 @@ UranusEditorEntitiesPaint.prototype.roundNumber = function (x, base) {
   return Math.round(x * base) / base;
 };
 
-UranusEditorEntitiesPaint.prototype.loadStreamingData = function (
-  streamingFile
-) {
+UranusEditorEntitiesPaint.prototype.loadStreamingData = function (streamingFile) {
   return new Promise(
     function (resolve) {
       if (streamingFile) {
@@ -1817,9 +1542,7 @@ UranusEditorEntitiesPaint.prototype.loadStreamingData = function (
 
           switch (streamingFile.type) {
             case "binary":
-              data = msgpack.decode(
-                new Uint8Array(this.streamingFile.resource)
-              );
+              data = msgpack.decode(new Uint8Array(this.streamingFile.resource));
 
               if (Array.isArray(data) === false) {
                 data = [];
@@ -1828,11 +1551,7 @@ UranusEditorEntitiesPaint.prototype.loadStreamingData = function (
               break;
 
             default:
-              data =
-                Array.isArray(streamingFile.resources) &&
-                streamingFile.resources.length >= 10
-                  ? streamingFile.resources
-                  : [];
+              data = Array.isArray(streamingFile.resources) && streamingFile.resources.length >= 10 ? streamingFile.resources : [];
               break;
           }
 
@@ -1892,10 +1611,7 @@ UranusEditorEntitiesPaint.prototype.saveStreamingData = function () {
   });
 };
 
-UranusEditorEntitiesPaint.prototype.filterInstances = function (
-  spawnEntity,
-  spawnEntityIndex
-) {
+UranusEditorEntitiesPaint.prototype.filterInstances = function (spawnEntity, spawnEntityIndex) {
   if (!this.streamingFile) {
     if (spawnEntity) {
       return this.entity.find(function (child) {
@@ -1909,10 +1625,7 @@ UranusEditorEntitiesPaint.prototype.filterInstances = function (
 
     for (let i = 0; i < this.streamingData.length; i += 10) {
       var index = this.streamingData[i];
-      if (
-        spawnEntityIndex === null ||
-        (spawnEntityIndex !== null && index === spawnEntityIndex)
-      ) {
+      if (spawnEntityIndex === null || (spawnEntityIndex !== null && index === spawnEntityIndex)) {
         instances.push(i);
       }
     }
@@ -1921,11 +1634,7 @@ UranusEditorEntitiesPaint.prototype.filterInstances = function (
   }
 };
 
-UranusEditorEntitiesPaint.prototype.getInstanceData = function (
-  pointer,
-  spawnEntities,
-  spawnData
-) {
+UranusEditorEntitiesPaint.prototype.getInstanceData = function (pointer, spawnEntities, spawnData) {
   var instanceData = this.instanceData;
   if (spawnData) {
     instanceData = {
@@ -1946,24 +1655,10 @@ UranusEditorEntitiesPaint.prototype.getInstanceData = function (
     instanceData.scale.copy(entity.getLocalScale());
   } else {
     var data = this.streamingData;
-    instanceData.name = spawnEntities
-      ? spawnEntities[data[pointer]].name
-      : undefined;
-    instanceData.position.set(
-      data[pointer + 1],
-      data[pointer + 2],
-      data[pointer + 3]
-    );
-    instanceData.rotation.setFromEulerAngles(
-      data[pointer + 4],
-      data[pointer + 5],
-      data[pointer + 6]
-    );
-    instanceData.scale.set(
-      data[pointer + 7],
-      data[pointer + 8],
-      data[pointer + 9]
-    );
+    instanceData.name = spawnEntities ? spawnEntities[data[pointer]].name : undefined;
+    instanceData.position.set(data[pointer + 1], data[pointer + 2], data[pointer + 3]);
+    instanceData.rotation.setFromEulerAngles(data[pointer + 4], data[pointer + 5], data[pointer + 6]);
+    instanceData.scale.set(data[pointer + 7], data[pointer + 8], data[pointer + 9]);
   }
 
   return instanceData;
@@ -1995,9 +1690,7 @@ UranusEditorEntitiesPaint.prototype.loadModelAssets = function (spawnEntities) {
 
       spawnEntities.forEach(
         function (spawnEntity) {
-          modelComponents = modelComponents.concat(
-            spawnEntity.findComponents("model")
-          );
+          modelComponents = modelComponents.concat(spawnEntity.findComponents("model"));
         }.bind(this)
       );
 

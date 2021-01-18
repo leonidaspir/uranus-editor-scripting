@@ -2766,15 +2766,11 @@ UranusEditorEntitiesDistribute.attributes.add("itemsNo", {
 UranusEditorEntitiesDistribute.attributes.add("brushAngle", {
     type: "number",
     title: "Rotate?",
-    enum: [
-        { "Don't rotate": 0 },
-        { "X Axis": 1 },
-        { "Y Axis": 2 },
-        { "Z Axis": 3 },
-    ],
+    enum: [{ "Don't rotate": 0 }, { "X Axis": 1 }, { "Y Axis": 2 }, { "Z Axis": 3 }],
 });
 UranusEditorEntitiesDistribute.attributes.add("brushScale", {
     type: "vec2",
+    default: [1, 1],
     title: "Scale min/max",
     placeholder: ["Min", "Max"],
     description: "If a dense radius is provided use scale min/max to add a random scale factor to each spawned instance.",
@@ -2794,15 +2790,13 @@ UranusEditorEntitiesDistribute.prototype.editorInitialize = function (manualRun)
         if (this.runBatcher === true) {
             this.executeBatcher();
         }
-    }
-    else {
-        if (!manualRun && this.onEvent) {
-            this.app.once(this.onEvent, this.initiate, this);
-        }
-        else {
-            this.initiate();
-        }
-    }
+    } /*else {
+      if (!manualRun && this.onEvent) {
+        this.app.once(this.onEvent, this.initiate, this);
+      } else {
+        this.initiate();
+      }
+    }*/
 };
 UranusEditorEntitiesDistribute.prototype.initiate = function () {
     // --- variables
@@ -2898,16 +2892,7 @@ UranusEditorEntitiesDistribute.prototype.prepareMap = function () {
                     this.setRandomRotation(this.vec, this.brushAngle);
                     // --- random scale
                     var newScaleFactor = pc.math.random(this.brushScale.x, this.brushScale.y);
-                    instances.push([
-                        bankIndex,
-                        x,
-                        height,
-                        z,
-                        this.vec.x,
-                        this.vec.y,
-                        this.vec.z,
-                        newScaleFactor,
-                    ]);
+                    instances.push([bankIndex, x, height, z, this.vec.x, this.vec.y, this.vec.z, newScaleFactor]);
                 }
             }
             resolve(instances);
@@ -2920,12 +2905,8 @@ UranusEditorEntitiesDistribute.prototype.condenseInstances = function (instances
             var a = Math.random();
             var b = Math.random();
             var instancePos = this.vec.set(instance[1], instance[2], instance[3]);
-            this.vec1.x =
-                instancePos.x +
-                    b * this.brushRadius * Math.cos((2 * Math.PI * a) / b);
-            this.vec1.z =
-                instancePos.z +
-                    b * this.brushRadius * Math.sin((2 * Math.PI * a) / b);
+            this.vec1.x = instancePos.x + b * this.brushRadius * Math.cos((2 * Math.PI * a) / b);
+            this.vec1.z = instancePos.z + b * this.brushRadius * Math.sin((2 * Math.PI * a) / b);
             // --- get elevation under the point
             this.vec2.set(this.vec1.x, 10000, this.vec1.z);
             this.vec3.set(this.vec1.x, -10000, this.vec1.z);
@@ -2942,16 +2923,7 @@ UranusEditorEntitiesDistribute.prototype.condenseInstances = function (instances
             // --- scale them up
             var newScaleFactor = pc.math.random(this.brushScale.x, this.brushScale.y);
             // --- add a new instance to the instances array
-            instances.push([
-                instance[0],
-                this.vec1.x,
-                this.vec1.y,
-                this.vec1.z,
-                this.vec2.x,
-                this.vec2.y,
-                this.vec2.z,
-                newScaleFactor,
-            ]);
+            instances.push([instance[0], this.vec1.x, this.vec1.y, this.vec1.z, this.vec2.x, this.vec2.y, this.vec2.z, newScaleFactor]);
         }
     }.bind(this));
 };
@@ -2963,8 +2935,10 @@ UranusEditorEntitiesDistribute.prototype.spawnInstances = function (instances) {
     }
     this.nodes = [];
     instances.forEach(function (instance, index) {
-        var parentBank = this.bank.children;
-        var bank = parentBank ? parentBank[instance[0]] : this.bank;
+        // var parentBank = this.bank.children;
+        // var bank = parentBank ? parentBank[instance[0]] : this.bank;
+        var bank = this.bank;
+        console.log(bank._guid);
         var node = bank.clone();
         parent.addChild(node);
         this.nodes.push({
@@ -3011,6 +2985,12 @@ UranusEditorEntitiesDistribute.prototype.setRandomRotation = function (vec, axis
 // --- editor script methods
 UranusEditorEntitiesDistribute.prototype.editorScriptPanelRender = function (element) {
     var containerEl = element.firstChild;
+    // --- spawn instances as editor items
+    var btnSpawn = new ui.Button({
+        text: "+ Spawn Instances",
+    });
+    btnSpawn.on("click", this.initiate.bind(this));
+    containerEl.append(btnSpawn.element);
     // --- bake button the instances as editor items
     var btnAdd = new ui.Button({
         text: "+ Bake Instances",
@@ -3074,11 +3054,7 @@ UranusEditorEntitiesDistribute.prototype.bakeInstancesInEditor = function () {
         var angles = entity.getLocalEulerAngles();
         var scale = entity.getLocalScale();
         newItem.set("enabled", true);
-        newItem.set("position", [
-            localPosition.x,
-            localPosition.y,
-            localPosition.z,
-        ]);
+        newItem.set("position", [localPosition.x, localPosition.y, localPosition.z]);
         newItem.set("rotation", [angles.x, angles.y, angles.z]);
         newItem.set("scale", [scale.x, scale.y, scale.z]);
         // destroy the app only entity
@@ -3104,18 +3080,17 @@ UranusEditorEntitiesDistribute.prototype.clearEditorInstances = function () {
         }
     });
 };
-UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, value) {
-    if (this.running === true)
-        return;
-    if (property === "runBatcher") {
-        this.executeBatcher();
-        return;
-    }
-    this.onDestroy();
-    if (this.inEditor === true) {
-        this.editorInitialize(true);
-    }
-};
+// UranusEditorEntitiesDistribute.prototype.editorAttrChange = function (property, value) {
+//   if (this.running === true) return;
+//   if (property === "runBatcher") {
+//     this.executeBatcher();
+//     return;
+//   }
+//   this.onDestroy();
+//   if (this.inEditor === true) {
+//     this.editorInitialize(true);
+//   }
+// };
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -3201,12 +3176,7 @@ UranusEditorEntitiesPaint.attributes.add("projectOffset", {
 });
 UranusEditorEntitiesPaint.attributes.add("rotateThem", {
     type: "string",
-    enum: [
-        { None: "none" },
-        { "X axis": "x" },
-        { "Y axis": "y" },
-        { "Z axis": "z" },
-    ],
+    enum: [{ None: "none" }, { "X axis": "x" }, { "Y axis": "y" }, { "Z axis": "z" }],
     default: "y",
     title: "Rotate Them",
 });
@@ -3256,6 +3226,13 @@ UranusEditorEntitiesPaint.attributes.add("hideAfter", {
     default: 0,
     title: "Far Clip",
     description: "Cull the instance after a distance from camera. Set to 0 to disable.",
+});
+UranusEditorEntitiesPaint.attributes.add("fadeoutThreshold", {
+    type: "number",
+    default: 1,
+    min: 1,
+    title: "Fadeout Threshold",
+    description: "A factor to be applied to the distance passed to the fadeout shader to provide finer control over the effect.",
 });
 UranusEditorEntitiesPaint.attributes.add("perInstanceCull", {
     type: "boolean",
@@ -3327,17 +3304,8 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
     this.randomPosition = new pc.Vec3();
     this.vecOne = new pc.Vec3(1, 1, 1);
     this.tempSphere = { center: null, radius: 0.5 };
-    this.lodDistance = [
-        this.lodLevels.x * this.lodLevels.x,
-        this.lodLevels.y * this.lodLevels.y,
-        this.lodLevels.z * this.lodLevels.z,
-    ];
-    this.lodDistanceRaw = [
-        this.lodLevels.x,
-        this.lodLevels.y,
-        this.lodLevels.z,
-        this.hideAfter,
-    ];
+    this.lodDistance = [this.lodLevels.x * this.lodLevels.x, this.lodLevels.y * this.lodLevels.y, this.lodLevels.z * this.lodLevels.z];
+    this.lodDistanceRaw = [this.lodLevels.x, this.lodLevels.y, this.lodLevels.z, this.hideAfter];
     this.spawnEntities = [];
     this.meshInstances = undefined;
     this.instanceData = {
@@ -3346,9 +3314,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         rotation: new pc.Quat(),
         scale: new pc.Vec3(),
     };
-    this.hiddenCamera = this.cullingCamera
-        ? this.cullingCamera.clone()
-        : undefined;
+    this.hiddenCamera = this.cullingCamera ? this.cullingCamera.clone() : undefined;
     if (this.hideAfter > 0 && this.hiddenCamera) {
         this.hiddenCamera.camera.farClip = this.hideAfter;
         this.cells = undefined;
@@ -3367,7 +3333,7 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         }
     }.bind(this));
     // --- events
-    if (Uranus.Editor.inEditor() === false) {
+    if (window.Uranus && Uranus.Editor.inEditor() === false) {
         this.on("attr", this.editorAttrChange, this);
     }
     this.on("state", function (enabled) {
@@ -3509,19 +3475,14 @@ UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value
     }
     if (this.cullingCamera && property === "hideAfter") {
         var hideAfter = value;
-        this.hiddenCamera.camera.farClip =
-            hideAfter > 0 ? hideAfter : this.cullingCamera.camera.farClip;
+        this.hiddenCamera.camera.farClip = hideAfter > 0 ? hideAfter : this.cullingCamera.camera.farClip;
         this.lodDistanceRaw[3] = value;
         if (this.hardwareInstancing) {
             this.prepareHardwareInstancing();
         }
     }
     if (property === "lodLevels") {
-        this.lodDistance = [
-            value.x * value.x,
-            value.y * value.y,
-            value.z * value.z,
-        ];
+        this.lodDistance = [value.x * value.x, value.y * value.y, value.z * value.z];
         this.lodDistanceRaw = [value.x, value.y, value.z, this.hideAfter];
     }
 };
@@ -3685,8 +3646,7 @@ UranusEditorEntitiesPaint.prototype.clearEntitiesInPoint = function (point) {
         // --- iterate the instances and remove ones in the bounding area
         this.parentItem.get("children").forEach(function (guid) {
             var item = editor.call("entities:get", guid);
-            if (item &&
-                center.distance(item.entity.getPosition()) <= this.brushDistance) {
+            if (item && center.distance(item.entity.getPosition()) <= this.brushDistance) {
                 editor.call("entities:removeEntity", item);
             }
         }.bind(this));
@@ -3736,11 +3696,7 @@ UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (point, normal
         this.createItem(this.currentPosition, normal);
     }
     this.lastPosition.set(point.x, point.y, point.z);
-    Uranus.Editor.interface.logMessage('Entities Painter spawned <strong style="color: lightred;">' +
-        count +
-        '</strong> instances for <strong style="color: cyan;">' +
-        this.entity.name +
-        "</strong>");
+    Uranus.Editor.interface.logMessage('Entities Painter spawned <strong style="color: lightred;">' + count + '</strong> instances for <strong style="color: cyan;">' + this.entity.name + "</strong>");
     // --- update renderer if required
     if (this.hardwareInstancing) {
         this.prepareHardwareInstancing();
@@ -3749,10 +3705,8 @@ UranusEditorEntitiesPaint.prototype.spawnEntityInPoint = function (point, normal
 UranusEditorEntitiesPaint.prototype.getRandomPositionInRadius = function (center, radius) {
     var a = Math.random();
     var b = Math.random();
-    this.randomPosition.x =
-        center.x + b * radius * Math.cos((2 * Math.PI * a) / b);
-    this.randomPosition.z =
-        center.z + b * radius * Math.sin((2 * Math.PI * a) / b);
+    this.randomPosition.x = center.x + b * radius * Math.cos((2 * Math.PI * a) / b);
+    this.randomPosition.z = center.z + b * radius * Math.sin((2 * Math.PI * a) / b);
     return this.randomPosition;
 };
 UranusEditorEntitiesPaint.prototype.createItem = function (position, normal) {
@@ -3854,9 +3808,7 @@ UranusEditorEntitiesPaint.prototype.getBrushAngles = function (referenceEntity, 
         // --- align in the direction of the hit normal
         this.setMat4Forward(this.matrix, normal, pc.Vec3.UP);
         this.quat.setFromMat4(this.matrix);
-        angles
-            .copy(this.quat.getEulerAngles())
-            .sub(referenceEntity.getLocalEulerAngles());
+        angles.copy(this.quat.getEulerAngles()).sub(referenceEntity.getLocalEulerAngles());
     }
     else {
         angles.copy(referenceEntity.getLocalEulerAngles());
@@ -3934,16 +3886,12 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                     this.clearInstances();
                     // --- get a list of the spawn entities to be instanced
                     if (this.spawnEntity) {
-                        this.spawnEntities =
-                            this.spawnEntity.children[0] instanceof pc.Entity
-                                ? this.spawnEntity.children
-                                : [this.spawnEntity];
+                        this.spawnEntities = this.spawnEntity.children[0] instanceof pc.Entity ? this.spawnEntity.children : [this.spawnEntity];
                     }
                     else {
                         spawnNames = [];
                         this.spawnEntities = this.entity.find(function (entity) {
-                            if (entity instanceof pc.Entity &&
-                                spawnNames.indexOf(entity.name) === -1) {
+                            if (entity instanceof pc.Entity && spawnNames.indexOf(entity.name) === -1) {
                                 spawnNames.push(entity.name);
                                 return true;
                             }
@@ -3990,9 +3938,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                             if (!lodEntity)
                                 continue;
                             this.lodLevelsEnabled[lodIndex] = true;
-                            spawnScale = this.spawnEntity
-                                ? lodEntity.getLocalScale()
-                                : this.vecOne;
+                            spawnScale = this.spawnEntity ? lodEntity.getLocalScale() : this.vecOne;
                             for (meshInstanceIndex = 0; meshInstanceIndex < lodEntity.model.meshInstances.length; meshInstanceIndex++) {
                                 meshInstance = lodEntity.model.meshInstances[meshInstanceIndex];
                                 meshInstance.visible = false;
@@ -4064,7 +4010,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                                     // --- check if we are interested in this mesh instance
                                     if (instance.name !== spawnEntity.name)
                                         continue;
-                                    scale = this.getInstanceScale(vec2, instance, spawnScale);
+                                    scale = this.getInstanceScale(vec2, instance, spawnScale, meshInstance);
                                     matrix = this.getInstanceMatrix(new pc.Mat4(), quat, instance, instance.position, meshRotation, scale);
                                     payload.matrices.push(matrix);
                                     // --- create a bounding box for this instance
@@ -4115,9 +4061,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                                 // --- replaces matrices references with the single cell typed array
                                 payload.matricesPerCell[cellGuid] = cellMatrices;
                             }
-                            bufferArray = this.cullingCamera
-                                ? UranusEditorEntitiesPaint.zeroBuffer
-                                : payload.totalMatrices;
+                            bufferArray = this.cullingCamera ? UranusEditorEntitiesPaint.zeroBuffer : payload.totalMatrices;
                             payload.vertexBuffer = new pc.VertexBuffer(this.app.graphicsDevice, pc.VertexFormat.defaultInstancingFormat, this.cullingCamera ? 0 : bufferArray.length / 16, pc.BUFFER_STATIC, this.cullingCamera ? UranusEditorEntitiesPaint.zeroBuffer : bufferArray);
                             meshInstance = payload.meshInstance;
                             // --- enable instancing on the mesh instance
@@ -4127,14 +4071,8 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                             };
                             meshInstance.material.update();
                             modelComponent = payload.baseEntity.model;
-                            meshInstance.castShadow =
-                                meshInstance.material.castShadows !== undefined
-                                    ? meshInstance.material.castShadows
-                                    : modelComponent.castShadows;
-                            meshInstance.receiveShadow =
-                                meshInstance.material.receiveShadows !== undefined
-                                    ? meshInstance.material.receiveShadows
-                                    : modelComponent.receiveShadows;
+                            meshInstance.castShadow = meshInstance.material.castShadows !== undefined ? meshInstance.material.castShadows : modelComponent.castShadows;
+                            meshInstance.receiveShadow = meshInstance.material.receiveShadows !== undefined ? meshInstance.material.receiveShadows : modelComponent.receiveShadows;
                             meshInstance.cull = false;
                             for (j = 0; j < modelComponent.layers.length; j++) {
                                 layerID = modelComponent.layers[j];
@@ -4166,8 +4104,13 @@ UranusEditorEntitiesPaint.prototype.getInstancePosition = function (position, in
     position.z += offset.z * scale.z;
     return position;
 };
-UranusEditorEntitiesPaint.prototype.getInstanceScale = function (scale, instance, spawnScale) {
+UranusEditorEntitiesPaint.prototype.getInstanceScale = function (scale, instance, spawnScale, meshInstance) {
     scale.copy(instance.scale).mul(spawnScale).scale(0.01);
+    // --- apply node scale
+    var nodeScale = meshInstance.node.getLocalScale();
+    scale.x *= nodeScale.x;
+    scale.y *= nodeScale.z;
+    scale.z *= nodeScale.y;
     return scale.set(scale.x, scale.z, scale.y);
 };
 UranusEditorEntitiesPaint.prototype.getInstanceMatrix = function (matrix, quat, instance, position, rotation, scale) {
@@ -4212,6 +4155,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
     var isStatic = this.isStatic;
     var lodLevels = this.lodLevels;
     var lodLevelsEnabled = this.lodLevelsEnabled;
+    var fadeoutThreshold = this.fadeoutThreshold;
     var lodThreshold = this.lodThreshold;
     var lodDistanceRaw = this.lodDistanceRaw;
     var vecOne = this.vecOne;
@@ -4238,41 +4182,22 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
             var cell = cells[cellGuid];
             cell.isVisible = frustum.containsSphere(cell.sphere);
             cell.distanceFromCamera = this.distanceSq(cameraPos, cell.center);
-            cell.activeLOD = useLOD
-                ? this.getActiveLOD(cell.distanceFromCamera, lodDistance, this.lodLevelsEnabled)
-                : 0;
+            cell.activeLOD = useLOD ? this.getActiveLOD(cell.distanceFromCamera, lodDistance, this.lodLevelsEnabled) : 0;
         }
     }
     for (lodIndex = 0; lodIndex < payloads.length; lodIndex++) {
         // --- prepare lod levels
-        lodDistanceRaw[2] = lodLevelsEnabled[3]
-            ? lodLevels.z
-            : hideAfter > 0
-                ? hideAfter
-                : 100000;
-        lodDistanceRaw[1] = lodLevelsEnabled[2]
-            ? lodLevels.y
-            : hideAfter > 0
-                ? hideAfter
-                : 100000;
-        lodDistanceRaw[0] = lodLevelsEnabled[1]
-            ? lodLevels.x
-            : hideAfter > 0
-                ? hideAfter
-                : 100000;
+        lodDistanceRaw[2] = lodLevelsEnabled[3] ? lodLevels.z : hideAfter > 0 ? hideAfter : 100000;
+        lodDistanceRaw[1] = lodLevelsEnabled[2] ? lodLevels.y : hideAfter > 0 ? hideAfter : 100000;
+        lodDistanceRaw[0] = lodLevelsEnabled[1] ? lodLevels.x : hideAfter > 0 ? hideAfter : 100000;
         for (i = 0; i < payloads[lodIndex].length; i++) {
             var payload = payloads[lodIndex][i];
             var bufferArray = payload.culledMatrices;
             if (!bufferArray)
                 continue;
             // --- update effects uniforms
-            payload.meshInstance.setParameter("uranusFadeOutDistance", lodDistanceRaw[lodIndex]);
-            payload.meshInstance.setParameter("uranusFadeInDistance", lodIndex > 0 ? lodDistanceRaw[lodIndex - 1] : 0);
-            payload.meshInstance.setParameter("uranusViewPosition", [
-                cameraPos.x,
-                cameraPos.y,
-                cameraPos.z,
-            ]);
+            payload.meshInstance.setParameter("uranusFadeOutDistance", lodDistanceRaw[lodIndex] * fadeoutThreshold);
+            payload.meshInstance.setParameter("uranusViewPosition", [cameraPos.x, cameraPos.y, cameraPos.z]);
             var lodEntity = payload.baseEntity;
             var spawnScale, spawnPos, offset;
             if (isStatic === false) {
@@ -4356,9 +4281,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
             // stats update
             app.graphicsDevice._vram.vb -= vertexBuffer.numBytes;
             var format = vertexBuffer.format;
-            vertexBuffer.numBytes = format.verticesByteSize
-                ? format.verticesByteSize
-                : format.size * instancesCount;
+            vertexBuffer.numBytes = format.verticesByteSize ? format.verticesByteSize : format.size * instancesCount;
             // stats update
             app.graphicsDevice._vram.vb += vertexBuffer.numBytes;
             vertexBuffer.setData(bufferArray);
@@ -4371,12 +4294,10 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
 };
 UranusEditorEntitiesPaint.prototype.getActiveLOD = function (distanceFromCamera, lodDistance, lodLevelsEnabled) {
     var activeLodIndex = 0;
-    if (distanceFromCamera >= lodDistance[0] &&
-        (distanceFromCamera < lodDistance[1] || lodLevelsEnabled[2] === false)) {
+    if (distanceFromCamera >= lodDistance[0] && (distanceFromCamera < lodDistance[1] || lodLevelsEnabled[2] === false)) {
         activeLodIndex = 1;
     }
-    else if (distanceFromCamera >= lodDistance[1] &&
-        (distanceFromCamera < lodDistance[2] || lodLevelsEnabled[3] === false)) {
+    else if (distanceFromCamera >= lodDistance[1] && (distanceFromCamera < lodDistance[2] || lodLevelsEnabled[3] === false)) {
         activeLodIndex = 2;
     }
     else if (distanceFromCamera >= lodDistance[2]) {
@@ -4385,22 +4306,16 @@ UranusEditorEntitiesPaint.prototype.getActiveLOD = function (distanceFromCamera,
     return activeLodIndex;
 };
 UranusEditorEntitiesPaint.prototype.checkActiveLOD = function (distanceFromCamera, lodDistance, lodIndexToCheck, lodLevelsEnabled, lodThreshold) {
-    if (lodIndexToCheck === 0 &&
-        (distanceFromCamera < lodDistance[0] || lodLevelsEnabled[1] === false)) {
+    if (lodIndexToCheck === 0 && (distanceFromCamera < lodDistance[0] || lodLevelsEnabled[1] === false)) {
         return 1;
     }
-    else if (lodIndexToCheck === 1 &&
-        distanceFromCamera >= lodDistance[0] * lodThreshold &&
-        (distanceFromCamera < lodDistance[1] || lodLevelsEnabled[2] === false)) {
+    else if (lodIndexToCheck === 1 && distanceFromCamera >= lodDistance[0] * lodThreshold && (distanceFromCamera < lodDistance[1] || lodLevelsEnabled[2] === false)) {
         return 1;
     }
-    else if (lodIndexToCheck === 2 &&
-        distanceFromCamera >= lodDistance[1] * lodThreshold &&
-        (distanceFromCamera < lodDistance[2] || lodLevelsEnabled[3] === false)) {
+    else if (lodIndexToCheck === 2 && distanceFromCamera >= lodDistance[1] * lodThreshold && (distanceFromCamera < lodDistance[2] || lodLevelsEnabled[3] === false)) {
         return 1;
     }
-    else if (lodIndexToCheck === 3 &&
-        distanceFromCamera >= lodDistance[2] * lodThreshold) {
+    else if (lodIndexToCheck === 3 && distanceFromCamera >= lodDistance[2] * lodThreshold) {
         return 1;
     }
     return 0;
@@ -4447,11 +4362,7 @@ UranusEditorEntitiesPaint.prototype.loadStreamingData = function (streamingFile)
                         }
                         break;
                     default:
-                        data =
-                            Array.isArray(streamingFile.resources) &&
-                                streamingFile.resources.length >= 10
-                                ? streamingFile.resources
-                                : [];
+                        data = Array.isArray(streamingFile.resources) && streamingFile.resources.length >= 10 ? streamingFile.resources : [];
                         break;
                 }
                 // --- unload source file to preserve memory
@@ -4514,8 +4425,7 @@ UranusEditorEntitiesPaint.prototype.filterInstances = function (spawnEntity, spa
         var instances = [];
         for (var i = 0; i < this.streamingData.length; i += 10) {
             var index = this.streamingData[i];
-            if (spawnEntityIndex === null ||
-                (spawnEntityIndex !== null && index === spawnEntityIndex)) {
+            if (spawnEntityIndex === null || (spawnEntityIndex !== null && index === spawnEntityIndex)) {
                 instances.push(i);
             }
         }
@@ -4542,9 +4452,7 @@ UranusEditorEntitiesPaint.prototype.getInstanceData = function (pointer, spawnEn
     }
     else {
         var data = this.streamingData;
-        instanceData.name = spawnEntities
-            ? spawnEntities[data[pointer]].name
-            : undefined;
+        instanceData.name = spawnEntities ? spawnEntities[data[pointer]].name : undefined;
         instanceData.position.set(data[pointer + 1], data[pointer + 2], data[pointer + 3]);
         instanceData.rotation.setFromEulerAngles(data[pointer + 4], data[pointer + 5], data[pointer + 6]);
         instanceData.scale.set(data[pointer + 7], data[pointer + 8], data[pointer + 9]);
@@ -4729,48 +4637,45 @@ UranusEffectGrassWind.prototype.updateAttributes = function () {
     this.material.setParameter('wavelength', this.wavelength);
     this.material.setParameter('amplitude', this.amplitude);
 };
-var UranusEffectLodSwitch = pc.createScript('UranusEffectLodSwitch');
+var UranusEffectLodSwitch = pc.createScript("UranusEffectLodSwitch");
 UranusEffectLodSwitch.attributes.add("inEditor", {
     type: "boolean",
     default: true,
     title: "In Editor",
 });
-UranusEffectLodSwitch.attributes.add('materialAsset', { type: 'asset', assetType: 'material' });
-UranusEffectLodSwitch.attributes.add('fadeThreshold', { type: 'number', default: 1.0, min: 0.0, title: 'Fade Threshold' });
+UranusEffectLodSwitch.attributes.add("materialAsset", { type: "asset", assetType: "material" });
+UranusEffectLodSwitch.attributes.add("fadeThreshold", { type: "number", default: 1.0, min: 0.0, title: "Fade Threshold" });
 // initialize code called once per entity
 UranusEffectLodSwitch.prototype.initialize = function () {
     if (!this.materialAsset) {
         return false;
     }
     this.materialAsset.ready(this.onMaterialUpdate.bind(this));
-    this.materialAsset.on('change', this.onMaterialUpdate.bind(this));
+    this.materialAsset.on("change", this.onMaterialUpdate.bind(this));
     this.app.assets.load(this.materialAsset);
-    this.on('attr', this.updateAttributes);
+    this.on("attr", this.updateAttributes);
 };
 UranusEffectLodSwitch.prototype.onMaterialUpdate = function () {
     var m = this.materialAsset.resource;
     this.material = m;
-    m.chunks.alphaTestPS = "    uniform float alpha_ref;" +
-        "    uniform vec3 uranusViewPosition;" +
-        "    uniform float uranusFadeInDistance;" +
-        "    uniform float uranusFadeOutDistance;" +
-        "    uniform float fadeThreshold;" +
-        "    void alphaTest(float a) {" +
-        "        float distance = distance(uranusViewPosition, vPositionW);" +
-        "        float fadeFactor = alpha_ref;" +
-        "        if( distance > (uranusFadeOutDistance * (1.0 - fadeThreshold) ) ){" +
-        "            fadeFactor = clamp(distance / uranusFadeOutDistance, alpha_ref, 1.0);" +
-        "        }" +
-        "        if( distance < (uranusFadeInDistance * (1.0 - fadeThreshold) ) ){" +
-        "            fadeFactor = clamp(distance / uranusFadeInDistance, alpha_ref, 1.0);" +
-        "        }" +
-        "        if (a < fadeFactor) discard;" +
-        "    }";
+    m.chunks.alphaTestPS =
+        "    uniform float alpha_ref;" +
+            "    uniform vec3 uranusViewPosition;" +
+            "    uniform float uranusFadeOutDistance;" +
+            "    uniform float fadeThreshold;" +
+            "    void alphaTest(float a) {" +
+            "        float distance = distance(uranusViewPosition, vPositionW);" +
+            "        float fadeFactor = alpha_ref;" +
+            "        if( distance > (uranusFadeOutDistance * fadeThreshold ) ){" +
+            "            fadeFactor = clamp(distance / uranusFadeOutDistance, alpha_ref, 1.0);" +
+            "        }" +
+            "        if (a < fadeFactor) discard;" +
+            "    }";
     m.update();
     this.updateAttributes();
 };
 UranusEffectLodSwitch.prototype.updateAttributes = function () {
-    this.material.setParameter('fadeThreshold', this.fadeThreshold);
+    this.material.setParameter("fadeThreshold", this.fadeThreshold);
 };
 var UranusEffectMaterialOverrideShadows = pc.createScript('UranusEffectMaterialOverrideShadows');
 UranusEffectMaterialOverrideShadows.attributes.add("inEditor", {

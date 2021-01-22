@@ -3139,7 +3139,7 @@ UranusEditorEntitiesPaint.attributes.add("inEditor", {
 });
 UranusEditorEntitiesPaint.attributes.add("spawnEntity", {
     type: "entity",
-    title: "Spawn Entity",
+    title: "Spawn Bank",
 });
 UranusEditorEntitiesPaint.attributes.add("itemsPerStroke", {
     type: "number",
@@ -3291,6 +3291,11 @@ UranusEditorEntitiesPaint.attributes.add("densityIncreaseRaycast", {
     title: "Density Increase Raycast",
     description: "If set to true a physics raycast will be cast to get the Y pos with accuracy, otherwise the same height will be used.",
 });
+UranusEditorEntitiesPaint.attributes.add("autostart", {
+    type: "boolean",
+    default: true,
+    title: "Autostart",
+});
 UranusEditorEntitiesPaint.zeroBuffer = new Float32Array();
 UranusEditorEntitiesPaint.prototype.initialize = function () {
     this.vec = new pc.Vec3();
@@ -3314,26 +3319,18 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
         rotation: new pc.Quat(),
         scale: new pc.Vec3(),
     };
-    this.hiddenCamera = this.cullingCamera ? this.cullingCamera.clone() : undefined;
-    if (this.hideAfter > 0 && this.hiddenCamera) {
-        this.hiddenCamera.camera.farClip = this.hideAfter;
-        this.cells = undefined;
-    }
+    this.updateCamera(this.cullingCamera);
     // --- load first any streaming data available
     this.hwReady = false;
     this.loadStreamingData(this.streamingFile).then(function (streamingData) {
         this.streamingData = streamingData;
         this.hwReady = true;
-        if (this.hardwareInstancing) {
-            // const p1 = performance.now();
+        if (this.hardwareInstancing && (this.autostart || (window.Uranus && Uranus.Editor.inEditor() === true))) {
             this.prepareHardwareInstancing();
-            // const p2 = performance.now();
-            // const diff = p2 - p1;
-            // console.log(this.entity.name, diff.toFixed(2));
         }
     }.bind(this));
     // --- events
-    if (window.Uranus && Uranus.Editor.inEditor() === false) {
+    if (!window.Uranus || (window.Uranus && Uranus.Editor.inEditor() === false)) {
         this.on("attr", this.editorAttrChange, this);
     }
     this.on("state", function (enabled) {
@@ -3349,6 +3346,9 @@ UranusEditorEntitiesPaint.prototype.initialize = function () {
             }
         }
     }, this);
+    this.app.on("uranusEditorEntitiesPaint:setActiveCamera", function (cameraEntity) {
+        this.updateCamera(cameraEntity);
+    }, this);
 };
 UranusEditorEntitiesPaint.prototype.update = function (dt) {
     if (this.hardwareInstancing) {
@@ -3357,6 +3357,19 @@ UranusEditorEntitiesPaint.prototype.update = function (dt) {
         // const p2 = performance.now();
         // const diff = p2 - p1;
         // console.log(diff.toFixed(2));
+    }
+};
+UranusEditorEntitiesPaint.prototype.updateCamera = function (cameraEntity, prepareInstances) {
+    if (this.hiddenCamera) {
+        this.hiddenCamera.destroy();
+    }
+    this.cullingCamera = cameraEntity;
+    this.hiddenCamera = cameraEntity ? cameraEntity.clone() : undefined;
+    if (this.hideAfter > 0 && this.hiddenCamera) {
+        this.hiddenCamera.camera.farClip = this.hideAfter;
+    }
+    if (prepareInstances === true) {
+        this.prepareHardwareInstancing();
     }
 };
 UranusEditorEntitiesPaint.prototype.editorInitialize = function () {
@@ -3455,7 +3468,7 @@ UranusEditorEntitiesPaint.prototype.editorScriptPanelRender = function (element)
     containerEl.append(btnClearInstances.element);
 };
 UranusEditorEntitiesPaint.prototype.editorAttrChange = function (property, value) {
-    if (Uranus.Editor.inEditor()) {
+    if (window.Uranus && Uranus.Editor.inEditor()) {
         if (this.building) {
             this.setGizmoState(false);
             this.setGizmoState(true);
@@ -3978,7 +3991,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                                                 this.vec.set(newPosition.x, newPosition.y + 10000, newPosition.z);
                                                 this.vec1.set(newPosition.x, newPosition.y - 10000, newPosition.z);
                                                 result = this.app.systems.rigidbody.raycastFirst(this.vec, this.vec1);
-                                                if (result && result.entity.name.indexOf("Terrain") > -1) {
+                                                if (result && result.entity.parent.name.indexOf("Terrain") > -1) {
                                                     height = result.point.y;
                                                     normal = result.normal;
                                                 }
@@ -4247,7 +4260,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                         instance.position.copy(instanceEntity.getPosition());
                         instance.rotation.copy(instanceEntity.getRotation());
                         instance.scale.copy(instanceEntity.getLocalScale());
-                        var scale = this.getInstanceScale(vec2, instance, spawnScale);
+                        var scale = this.getInstanceScale(vec2, instance, spawnScale, payload.meshInstance);
                         // var position = this.getInstancePosition(
                         //   vec1,
                         //   instance,
@@ -5047,53 +5060,71 @@ UranusEffectWater.prototype.getOpacityShader = function () {
 UranusEffectWater.prototype.getTransformShader = function () {
     return "\n\n  uniform float timer;\n  uniform float waveVertexLength;\n  uniform float waveVertexAmplitude;\n\n  mat4 getModelMatrix() {\n      return matrix_model;\n  }\n  \n  vec4 getPosition() {\n      dModelMatrix = getModelMatrix();\n      vec3 localPos = vertex_position; \n  \n      vec4 posW = dModelMatrix * vec4(localPos, 1.0);\n      posW.y += cos( (posW.x + timer) /waveVertexLength ) * sin( (posW.z + timer) /waveVertexLength ) * waveVertexAmplitude;\n\n      dPositionW = posW.xyz;\n  \n      vec4 screenPos = matrix_viewProjection * posW;\n\n      return screenPos;\n  }\n  \n  vec3 getWorldPosition() {\n      return dPositionW;\n  }\n";
 };
-var UranusBillboardRenderer = pc.createScript('UranusBillboardRenderer');
-UranusBillboardRenderer.attributes.add('cameraEntity', { type: 'entity', title: 'Camera' });
-UranusBillboardRenderer.attributes.add('billboard', { type: 'entity', title: 'Billboard' });
-UranusBillboardRenderer.attributes.add('resolution', { type: 'vec2', default: [1024, 1024], placeholder: ['width', 'height'], title: 'Resolution' });
-UranusBillboardRenderer.attributes.add('crop', { type: 'boolean', default: true, title: 'Crop' });
-UranusBillboardRenderer.attributes.add('baseHeight', { type: 'boolean', default: true, title: 'Base Height' });
+var UranusBillboardRenderer = pc.createScript("UranusBillboardRenderer");
+UranusBillboardRenderer.attributes.add("cameraEntity", { type: "entity", title: "Camera" });
+UranusBillboardRenderer.attributes.add("billboard", { type: "entity", title: "Billboard" });
+UranusBillboardRenderer.attributes.add("resolution", { type: "vec2", default: [1024, 1024], placeholder: ["width", "height"], title: "Resolution" });
+UranusBillboardRenderer.attributes.add("crop", { type: "boolean", default: true, title: "Crop" });
+UranusBillboardRenderer.attributes.add("baseHeight", { type: "boolean", default: true, title: "Base Height" });
 // initialize code called once per entity
 UranusBillboardRenderer.prototype.initialize = function () {
     // --- variables
     this.vec = new pc.Vec3();
     this.count = 0;
-    this.cameraEntity = this.cameraEntity ? this.cameraEntity : this.app.root.findByName('Camera');
+    this.cameraOffset = 1.2;
+    this.aabb = new pc.BoundingBox();
+    this.cameraEntity = this.cameraEntity ? this.cameraEntity : this.app.root.findByName("Camera");
     this.billboard = this.billboard ? this.billboard : this.entity;
     // --- prepare
-    this.canvas = document.getElementById('application-canvas');
-    this.trimCanvas = document.createElement('canvas');
-    this.resizeCanvas = document.createElement('canvas');
-    var linkElement = document.createElement('a');
-    linkElement.id = 'link';
+    this.canvas = document.getElementById("application-canvas");
+    this.trimCanvas = document.createElement("canvas");
+    this.resizeCanvas = document.createElement("canvas");
+    var linkElement = document.createElement("a");
+    linkElement.id = "link";
     window.document.body.appendChild(linkElement);
     // --- events
     this.app.keyboard.on(pc.EVENT_KEYUP, this.onKeyUp, this);
 };
-UranusBillboardRenderer.prototype.render = function () {
+UranusBillboardRenderer.prototype.preview = function () {
     // --- find the aabb and try to center/fit the object in the camera view
-    this.aabb = new pc.BoundingBox();
     this.buildAabb(this.aabb, this.billboard);
-    this.cameraEntity.camera.orthoHeight = this.aabb.halfExtents.y * 1.2;
+    this.cameraEntity.camera.orthoHeight = this.aabb.halfExtents.y * this.cameraOffset;
     var cameraPos = this.cameraEntity.getPosition();
     this.cameraEntity.setPosition(cameraPos.x, this.aabb.center.y, cameraPos.z);
+};
+UranusBillboardRenderer.prototype.render = function () {
+    this.preview();
     // --- save and download a screen grab
     this.count++;
     var filename;
     if (this.billboard.model && this.billboard.model.asset) {
         var asset = this.app.assets.get(this.billboard.model.asset);
-        filename = asset.name.split('.')[0] + '_billboard';
+        filename = asset.name.split(".")[0] + "_billboard";
     }
     else {
-        filename = this.billboard.name + '_billboard';
+        filename = this.billboard.name + "_billboard";
     }
     window.setTimeout(function () {
         this.takeScreenshot(filename);
     }.bind(this), 100);
 };
 UranusBillboardRenderer.prototype.onKeyUp = function (event) {
-    if (event.key === pc.KEY_SPACE) {
-        this.render();
+    switch (event.key) {
+        case pc.KEY_SPACE:
+            this.render();
+            break;
+        case pc.KEY_P:
+            this.cameraOffset = 1.2;
+            this.preview();
+            break;
+        case pc.KEY_W:
+            this.cameraOffset += 0.05;
+            this.preview();
+            break;
+        case pc.KEY_S:
+            this.cameraOffset -= 0.05;
+            this.preview();
+            break;
     }
 };
 UranusBillboardRenderer.prototype.buildAabb = function (aabb, entity, modelsAdded) {
@@ -5116,7 +5147,7 @@ UranusBillboardRenderer.prototype.buildAabb = function (aabb, entity, modelsAdde
     return modelsAdded;
 };
 UranusBillboardRenderer.prototype.takeScreenshot = function (filename) {
-    var image = this.canvas.toDataURL('image/png');
+    var image = this.canvas.toDataURL("image/png");
     if (this.crop) {
         this.trimImage(image).then(function (base64) {
             this.downloadImage(filename, base64);
@@ -5127,16 +5158,16 @@ UranusBillboardRenderer.prototype.takeScreenshot = function (filename) {
     }
 };
 UranusBillboardRenderer.prototype.downloadImage = function (filename, image) {
-    var link = document.getElementById('link');
-    link.setAttribute('download', filename + '.png');
-    link.setAttribute('href', image.replace("image/png", "image/octet-stream"));
+    var link = document.getElementById("link");
+    link.setAttribute("download", filename + ".png");
+    link.setAttribute("href", image.replace("image/png", "image/octet-stream"));
     link.click();
 };
 UranusBillboardRenderer.prototype.trimImage = function (base64) {
     return new Promise(function (resolve) {
         this.trimCanvas.width = this.canvas.width;
         this.trimCanvas.height = this.canvas.height;
-        var ctx = this.trimCanvas.getContext('2d');
+        var ctx = this.trimCanvas.getContext("2d");
         var img = new Image();
         img.onload = function () {
             ctx.drawImage(img, 0, 0, this.trimCanvas.width, this.trimCanvas.height);
@@ -5145,14 +5176,14 @@ UranusBillboardRenderer.prototype.trimImage = function (base64) {
                 top: null,
                 left: null,
                 right: null,
-                bottom: null
+                bottom: null,
             }, x, y;
             // Iterate over every pixel to find the highest
             // and where it ends on every axis ()
             for (i = 0; i < l; i += 4) {
                 if (pixels.data[i + 3] !== 0) {
                     x = (i / 4) % this.trimCanvas.width;
-                    y = ~~((i / 4) / this.trimCanvas.width);
+                    y = ~~(i / 4 / this.trimCanvas.width);
                     if (bound.top === null) {
                         bound.top = y;
                     }
@@ -5181,7 +5212,7 @@ UranusBillboardRenderer.prototype.trimImage = function (base64) {
                 this.trimCanvas.width = trimWidth;
                 this.trimCanvas.height = trimHeight;
                 ctx.putImageData(trimmed, 0, 0);
-                resolve(this.trimCanvas.toDataURL('image/png'));
+                resolve(this.trimCanvas.toDataURL("image/png"));
             }
             else {
                 this.trimCanvas.width = this.baseHeight ? trimHeight : trimWidth;
@@ -5189,8 +5220,8 @@ UranusBillboardRenderer.prototype.trimImage = function (base64) {
                 ctx.putImageData(trimmed, this.baseHeight ? (this.trimCanvas.width - trimWidth) / 2 : 0, this.baseHeight ? 0 : (this.trimCanvas.height - trimHeight) / 2);
                 this.resizeCanvas.width = this.resolution.x;
                 this.resizeCanvas.height = this.resolution.y;
-                this.resizeCanvas.getContext('2d').drawImage(this.trimCanvas, 0, 0, this.trimCanvas.width, this.trimCanvas.height, 0, 0, this.resizeCanvas.width, this.resizeCanvas.height);
-                resolve(this.resizeCanvas.toDataURL('image/png'));
+                this.resizeCanvas.getContext("2d").drawImage(this.trimCanvas, 0, 0, this.trimCanvas.width, this.trimCanvas.height, 0, 0, this.resizeCanvas.width, this.resizeCanvas.height);
+                resolve(this.resizeCanvas.toDataURL("image/png"));
             }
         }.bind(this);
         img.src = base64;

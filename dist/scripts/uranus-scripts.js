@@ -4850,6 +4850,8 @@ UranusEffectMaterialMix.prototype.prepareChannels = function () {
 };
 UranusEffectMaterialMix.prototype.updateMaterial = function () {
     var _this = this;
+    if (!this.materialAsset)
+        return;
     var material = this.materialAsset.resource;
     this.channels.forEach(function (channel) {
         switch (channel.chunkName) {

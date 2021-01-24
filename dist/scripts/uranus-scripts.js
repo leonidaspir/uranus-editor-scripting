@@ -4801,9 +4801,9 @@ UranusEffectMaterialMix.prototype.prepareChannels = function () {
     this.channels = [];
     this.texturesUsed = {};
     // --- order array by shader compilation order
-    var orderedChannels = this.materialChannels.sort(function (a, b) { return (UranusEffectMaterialMix.channelOrder.indexOf(a.channelName) > UranusEffectMaterialMix.channelOrder.indexOf(a.channelName) ? 1 : -1); });
+    var orderedChannels = this.materialChannels.sort(function (a, b) { return (UranusEffectMaterialMix.channelOrder.indexOf(a.channelName) > UranusEffectMaterialMix.channelOrder.indexOf(b.channelName) ? 1 : -1); });
     orderedChannels.forEach(function (materialChannel) {
-        if (!materialChannel)
+        if (!materialChannel || UranusEffectMaterialMix.channelOrder.indexOf(materialChannel.channelName) === -1)
             return true;
         // --- prepare the channel
         var channel = {
@@ -4861,11 +4861,13 @@ UranusEffectMaterialMix.prototype.updateMaterial = function () {
                 material.chunks.diffusePS = _this.getDiffuseShader(material, channel);
                 break;
             case "normalMap":
+                var baseNormalMap = true;
                 if (!material.normalMap) {
                     material.normalMap = channel.mask.resource;
+                    baseNormalMap = false;
                 }
                 material.normalMapTiling = new pc.Vec2(1, 1);
-                material.chunks.normalMapPS = _this.getNormalShader(material, channel);
+                material.chunks.normalMapPS = _this.getNormalShader(material, channel, baseNormalMap);
                 break;
             default:
                 return true;
@@ -4876,47 +4878,58 @@ UranusEffectMaterialMix.prototype.updateMaterial = function () {
 UranusEffectMaterialMix.prototype.getDiffuseShader = function (material, channel) {
     // --- prepare uniforms
     var uniforms = "";
-    var dAlbedo;
+    var dAlbedo = "";
     if (channel.textures.length > 0) {
         // --- add mask to uniform, if required
         if (channel.mask.inUse === false) {
             uniforms = "uniform sampler2D " + channel.mask.uniformName + ";\n";
+            uniforms += "vec4 dColormapU;\n";
+            dAlbedo += "dColormapU = texture2D(" + channel.mask.uniformName + ", $UV);\n";
             material.setParameter(channel.mask.uniformName, channel.mask.resource);
         }
-        dAlbedo = "vec4 colormap = texture2D(" + channel.mask.uniformName + ", $UV);\n";
         // --- add the color channel uniforms
         channel.textures.forEach(function (texture, index) {
             //if (index > 0) return;
             uniforms += "uniform sampler2D " + texture.uniformName + ";\n";
             var checkInvert = texture.invertChannel ? "1.0 - " : "";
-            dAlbedo += "dAlbedo += texture2D(" + texture.uniformName + ", $UV * " + texture.tiling + ").rgb * (" + checkInvert + "colormap." + texture.colorChannel + ");\n";
+            dAlbedo += "dAlbedo += texture2D(" + texture.uniformName + ", $UV * " + texture.tiling + ").rgb * (" + checkInvert + "dColormapU." + texture.colorChannel + ");\n";
             material.setParameter(texture.uniformName, texture.resource);
         });
     }
     var shader = "\n\n  " + uniforms + "\n\n  #ifdef MAPCOLOR\n  uniform vec3 material_diffuse;\n  #endif\n\n  void getAlbedo() {\n      \n      " + dAlbedo + "\n      dAlbedo=gammaCorrectInput(dAlbedo);\n\n      #ifdef MAPCOLOR\n      dAlbedo *= material_diffuse.rgb;\n      #endif         \n\n      #ifdef MAPVERTEX\n      dAlbedo *= gammaCorrectInput(saturate(vVertexColor.$VC));\n      #endif      \n  }  \n  ";
     return shader;
 };
-UranusEffectMaterialMix.prototype.getNormalShader = function (material, channel) {
+UranusEffectMaterialMix.prototype.getNormalShader = function (material, channel, baseNormalMap) {
     // --- prepare uniforms
     var uniforms = "";
-    var normalMap;
+    var normalMap = "";
+    // --- base material normal map
+    if (baseNormalMap) {
+        uniforms += "uniform sampler2D texture_normalMap;\n";
+        normalMap += "normalMap = unpackNormal(texture2D(texture_normalMap, $UV));\n";
+    }
+    else {
+        normalMap += "normalMap = vec3(0.0, 0.0, 1.0);\n";
+    }
     if (channel.textures.length > 0) {
         // --- add mask to uniform, if required
         if (channel.mask.inUse === false) {
-            uniforms = "uniform sampler2D " + channel.mask.uniformName + ";\n";
+            uniforms += "uniform sampler2D " + channel.mask.uniformName + ";\n";
+            uniforms += "vec4 dColormapU;\n";
+            normalMap += "dColormapU = texture2D(" + channel.mask.uniformName + ", $UV);\n";
             material.setParameter(channel.mask.uniformName, channel.mask.resource);
         }
-        normalMap = "vec4 colormap = texture2D(" + channel.mask.uniformName + ", $UV);\n";
         // --- add the color channel uniforms
         channel.textures.forEach(function (texture, index) {
             //if (index > 0) return;
             uniforms += "uniform sampler2D " + texture.uniformName + ";\n";
             var checkInvert = texture.invertChannel ? "1.0 - " : "";
-            normalMap += "normalMap += unpackNormal(texture2D(" + texture.uniformName + ", $UV * " + texture.tiling + ")) * (" + checkInvert + "colormap." + texture.colorChannel + ");\n";
+            normalMap += "normalMap += unpackNormal(texture2D(" + texture.uniformName + ", $UV * " + texture.tiling + ")) * (" + checkInvert + "dColormapU." + texture.colorChannel + ");\n";
             material.setParameter(texture.uniformName, texture.resource);
         });
     }
-    var shader = "\n  \n    " + uniforms + "\n  \n    uniform sampler2D texture_normalMap;\n    uniform float material_bumpiness;\n\n    void getNormal() {\n\n        vec3 normalMap = unpackNormal(texture2D(texture_normalMap, $UV));\n        " + normalMap + "\n        normalMap = normalize(mix(vec3(0.0, 0.0, 1.0), normalMap, material_bumpiness));\n        dNormalMap = addNormalDetail(normalMap);\n        dNormalW = dTBN * dNormalMap; \n    }  \n    ";
+    var shader = "\n  \n    " + uniforms + "\n\n    uniform float material_bumpiness;\n\n    void getNormal() {\n\n        vec3 normalMap;\n        " + normalMap + "\n        normalMap = normalize(mix(vec3(0.0, 0.0, 1.0), normalMap, material_bumpiness));\n        dNormalMap = normalMap;\n        dNormalW = dTBN * dNormalMap; \n    }  \n    ";
+    console.log(shader);
     return shader;
 };
 var UranusEffectMaterialOverrideShadows = pc.createScript('UranusEffectMaterialOverrideShadows');

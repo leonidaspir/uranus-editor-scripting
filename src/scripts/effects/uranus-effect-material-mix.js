@@ -282,7 +282,6 @@ UranusEffectMaterialMix.prototype.getNormalShader = function (material, channel,
 
     // --- add the color channel uniforms
     channel.textures.forEach((texture, index) => {
-      //if (index > 0) return;
       uniforms += `uniform sampler2D ${texture.uniformName};\n`;
 
       const checkInvert = texture.invertChannel ? "1.0 - " : "";
@@ -309,6 +308,5 @@ UranusEffectMaterialMix.prototype.getNormalShader = function (material, channel,
     }  
     `;
 
-  console.log(shader);
   return shader;
 };

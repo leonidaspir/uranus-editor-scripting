@@ -4921,7 +4921,6 @@ UranusEffectMaterialMix.prototype.getNormalShader = function (material, channel,
         }
         // --- add the color channel uniforms
         channel.textures.forEach(function (texture, index) {
-            //if (index > 0) return;
             uniforms += "uniform sampler2D " + texture.uniformName + ";\n";
             var checkInvert = texture.invertChannel ? "1.0 - " : "";
             normalMap += "normalMap += unpackNormal(texture2D(" + texture.uniformName + ", $UV * " + texture.tiling + ")) * (" + checkInvert + "dColormapU." + texture.colorChannel + ");\n";
@@ -4929,7 +4928,6 @@ UranusEffectMaterialMix.prototype.getNormalShader = function (material, channel,
         });
     }
     var shader = "\n  \n    " + uniforms + "\n\n    uniform float material_bumpiness;\n\n    void getNormal() {\n\n        vec3 normalMap;\n        " + normalMap + "\n        normalMap = normalize(mix(vec3(0.0, 0.0, 1.0), normalMap, material_bumpiness));\n        dNormalMap = normalMap;\n        dNormalW = dTBN * dNormalMap; \n    }  \n    ";
-    console.log(shader);
     return shader;
 };
 var UranusEffectMaterialOverrideShadows = pc.createScript('UranusEffectMaterialOverrideShadows');

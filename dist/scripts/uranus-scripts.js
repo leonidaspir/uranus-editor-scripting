@@ -4717,6 +4717,13 @@ UranusEffectMaterialMix.attributes.add("materialChannels", {
             description: "A RGB or RGBA mask to be used for masking.",
         },
         {
+            name: "maskTiling",
+            title: "Mask Tiling",
+            type: "number",
+            default: 1,
+            description: "The tiling for the mask channel.",
+        },
+        {
             name: "invertR",
             title: "Invert Channel R",
             type: "boolean",
@@ -4751,6 +4758,41 @@ UranusEffectMaterialMix.attributes.add("materialChannels", {
             assetType: "texture",
             array: true,
             description: "A list of texture to be assigned in order using the mask corresponding color channel.",
+        },
+        {
+            name: "useBaseMap",
+            title: "Use Base Map",
+            type: "boolean",
+            default: false,
+            description: "If selected the base channel map if assigned to the material will be used as well.",
+        },
+        {
+            name: "vertexColorR",
+            title: "Vertex Color Channel R",
+            type: "string",
+            default: "",
+            enum: [{ None: "" }, { R: "r" }, { G: "g" }, { B: "b" }, { "Invert R": "invert_r" }, { "Invert G": "invert_g" }, { "Invert B": "invert_b" }],
+        },
+        {
+            name: "vertexColorG",
+            title: "Vertex Color Channel G",
+            type: "string",
+            default: "",
+            enum: [{ None: "" }, { R: "r" }, { G: "g" }, { B: "b" }, { "Invert R": "invert_r" }, { "Invert G": "invert_g" }, { "Invert B": "invert_b" }],
+        },
+        {
+            name: "vertexColorB",
+            title: "Vertex Color Channel B",
+            type: "string",
+            default: "",
+            enum: [{ None: "" }, { R: "r" }, { G: "g" }, { B: "b" }, { "Invert R": "invert_r" }, { "Invert G": "invert_g" }, { "Invert B": "invert_b" }],
+        },
+        {
+            name: "vertexColorA",
+            title: "Vertex Color Channel A",
+            type: "string",
+            default: "",
+            enum: [{ None: "" }, { R: "r" }, { G: "g" }, { B: "b" }],
         },
         {
             name: "tilingR",
@@ -4809,6 +4851,7 @@ UranusEffectMaterialMix.prototype.prepareChannels = function () {
         var channel = {
             chunkName: materialChannel.channelName,
             mask: undefined,
+            useBaseMap: materialChannel.useBaseMap,
             textures: [],
         };
         // --- prepare the mask and attempt to reuse if it's already in use
@@ -4817,6 +4860,7 @@ UranusEffectMaterialMix.prototype.prepareChannels = function () {
             channel.mask = {
                 uniformName: textureFromHistory.uniformName,
                 resource: textureFromHistory.resource,
+                tiling: materialChannel.maskTiling.toFixed(2),
                 inUse: true,
             };
         }
@@ -4824,6 +4868,7 @@ UranusEffectMaterialMix.prototype.prepareChannels = function () {
             channel.mask = {
                 uniformName: "textureU_" + channel.chunkName + "_mask",
                 resource: materialChannel.mask.resource,
+                tiling: materialChannel.maskTiling.toFixed(2),
                 inUse: false,
             };
             // --- keep track of textures used
@@ -4831,6 +4876,7 @@ UranusEffectMaterialMix.prototype.prepareChannels = function () {
         }
         var maskColors = channel.mask.resource.format === pc.PIXELFORMAT_R8_G8_B8_A8 ? ["r", "g", "b", "a"] : ["r", "g", "b"];
         var textureTiling = [materialChannel.tilingR, materialChannel.tilingG, materialChannel.tilingB, materialChannel.tilingA];
+        var vertexColors = [materialChannel.vertexColorR, materialChannel.vertexColorG, materialChannel.vertexColorB, materialChannel.vertexColorA];
         var invertChannel = [materialChannel.invertR, materialChannel.invertG, materialChannel.invertB, materialChannel.invertA];
         // --- assign the textures
         materialChannel.textures.forEach(function (textureAsset, textureIndex) {
@@ -4841,6 +4887,8 @@ UranusEffectMaterialMix.prototype.prepareChannels = function () {
                     colorChannel: maskColors[textureIndex],
                     tiling: textureTiling[textureIndex].toFixed(2),
                     invertChannel: invertChannel[textureIndex],
+                    inverseVertexColor: vertexColors[textureIndex].indexOf("invert_") === 0,
+                    vertexColor: vertexColors[textureIndex].indexOf("invert_") === 0 ? vertexColors[textureIndex].replace("invert_", "") : vertexColors[textureIndex],
                 };
                 channel.textures.push(texture);
             }
@@ -4856,19 +4904,28 @@ UranusEffectMaterialMix.prototype.updateMaterial = function () {
     this.channels.forEach(function (channel) {
         switch (channel.chunkName) {
             case "diffuse":
+                var baseDiffuseMap = channel.useBaseMap;
                 if (!material.diffuseMap) {
                     material.diffuseMap = channel.mask.resource;
+                    baseDiffuseMap = false;
                 }
                 material.diffuseMapTiling = new pc.Vec2(1, 1);
-                material.chunks.diffusePS = _this.getDiffuseShader(material, channel);
+                material.chunks.diffusePS = _this.getDiffuseShader(material, channel, baseDiffuseMap);
+                if (material.chunks.diffusePS.indexOf("vVertexColor") > -1) {
+                    material.diffuseVertexColor = true;
+                }
                 break;
             case "normalMap":
-                var baseNormalMap = true;
+                var baseNormalMap = channel.useBaseMap;
                 if (!material.normalMap) {
                     material.normalMap = channel.mask.resource;
                     baseNormalMap = false;
                 }
                 material.normalMapTiling = new pc.Vec2(1, 1);
+                material.onUpdateShader = function (options) {
+                    options.vertexColors = true;
+                    return options;
+                };
                 material.chunks.normalMapPS = _this.getNormalShader(material, channel, baseNormalMap);
                 break;
             default:
@@ -4877,28 +4934,37 @@ UranusEffectMaterialMix.prototype.updateMaterial = function () {
     });
     material.update();
 };
-UranusEffectMaterialMix.prototype.getDiffuseShader = function (material, channel) {
+UranusEffectMaterialMix.prototype.getDiffuseShader = function (material, channel, baseDiffuseMap) {
     // --- prepare uniforms
     var uniforms = "";
     var dAlbedo = "";
+    // --- base material diffuse map
+    if (baseDiffuseMap) {
+        uniforms += "uniform sampler2D texture_diffuseMap;\n";
+        dAlbedo += "dAlbedo = addAlbedoDetail(texture2D(texture_diffuseMap, $UV).$CH);\n";
+    }
+    else {
+        dAlbedo += "dAlbedo = vec3(0.0, 0.0, 0.0);\n";
+    }
     if (channel.textures.length > 0) {
         // --- add mask to uniform, if required
         if (channel.mask.inUse === false) {
-            uniforms = "uniform sampler2D " + channel.mask.uniformName + ";\n";
+            uniforms += "uniform sampler2D " + channel.mask.uniformName + ";\n";
             uniforms += "vec4 dColormapU;\n";
-            dAlbedo += "dColormapU = texture2D(" + channel.mask.uniformName + ", $UV);\n";
+            dAlbedo += "dColormapU = texture2D(" + channel.mask.uniformName + ", $UV * " + channel.mask.tiling + ");\n";
             material.setParameter(channel.mask.uniformName, channel.mask.resource);
         }
         // --- add the color channel uniforms
         channel.textures.forEach(function (texture, index) {
-            //if (index > 0) return;
             uniforms += "uniform sampler2D " + texture.uniformName + ";\n";
             var checkInvert = texture.invertChannel ? "1.0 - " : "";
-            dAlbedo += "dAlbedo += texture2D(" + texture.uniformName + ", $UV * " + texture.tiling + ").rgb * (" + checkInvert + "dColormapU." + texture.colorChannel + ");\n";
+            var inverseVertexColor = texture.inverseVertexColor ? "1.0 - " : "";
+            var checkVertexColor = texture.vertexColor !== "" ? " * (" + inverseVertexColor + "vVertexColor." + texture.vertexColor + ")" : "";
+            dAlbedo += "dAlbedo += texture2D(" + texture.uniformName + ", $UV * " + texture.tiling + ").rgb " + checkVertexColor + " * (" + checkInvert + "dColormapU." + texture.colorChannel + ");\n";
             material.setParameter(texture.uniformName, texture.resource);
         });
     }
-    var shader = "\n\n  " + uniforms + "\n\n  #ifdef MAPCOLOR\n  uniform vec3 material_diffuse;\n  #endif\n\n  void getAlbedo() {\n      \n      " + dAlbedo + "\n      dAlbedo=gammaCorrectInput(dAlbedo);\n\n      #ifdef MAPCOLOR\n      dAlbedo *= material_diffuse.rgb;\n      #endif         \n\n      #ifdef MAPVERTEX\n      dAlbedo *= gammaCorrectInput(saturate(vVertexColor.$VC));\n      #endif      \n  }  \n  ";
+    var shader = "\n\n  " + uniforms + "\n\n  #ifdef MAPCOLOR\n  uniform vec3 material_diffuse;\n  #endif\n\n  void getAlbedo() {\n      \n      " + dAlbedo + "\n      dAlbedo=gammaCorrectInput(dAlbedo);\n\n      #ifdef MAPCOLOR\n      dAlbedo *= material_diffuse.rgb;\n      #endif         \n  }  \n  ";
     return shader;
 };
 UranusEffectMaterialMix.prototype.getNormalShader = function (material, channel, baseNormalMap) {
@@ -4918,14 +4984,16 @@ UranusEffectMaterialMix.prototype.getNormalShader = function (material, channel,
         if (channel.mask.inUse === false) {
             uniforms += "uniform sampler2D " + channel.mask.uniformName + ";\n";
             uniforms += "vec4 dColormapU;\n";
-            normalMap += "dColormapU = texture2D(" + channel.mask.uniformName + ", $UV);\n";
+            normalMap += "dColormapU = texture2D(" + channel.mask.uniformName + ", $UV * " + channel.mask.tiling + ");\n";
             material.setParameter(channel.mask.uniformName, channel.mask.resource);
         }
         // --- add the color channel uniforms
         channel.textures.forEach(function (texture, index) {
             uniforms += "uniform sampler2D " + texture.uniformName + ";\n";
             var checkInvert = texture.invertChannel ? "1.0 - " : "";
-            normalMap += "normalMap += unpackNormal(texture2D(" + texture.uniformName + ", $UV * " + texture.tiling + ")) * (" + checkInvert + "dColormapU." + texture.colorChannel + ");\n";
+            var inverseVertexColor = texture.inverseVertexColor ? "1.0 - " : "";
+            var checkVertexColor = texture.vertexColor !== "" ? " * (" + inverseVertexColor + "vVertexColor." + texture.vertexColor + ")" : "";
+            normalMap += "normalMap += unpackNormal(texture2D(" + texture.uniformName + ", $UV * " + texture.tiling + ")) " + checkVertexColor + " * (" + checkInvert + "dColormapU." + texture.colorChannel + ");\n";
             material.setParameter(texture.uniformName, texture.resource);
         });
     }

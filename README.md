@@ -206,39 +206,9 @@ https://forum.playcanvas.com/t/scripting-the-playcanvas-editor/2315
 
 https://forum.playcanvas.com/t/solved-tutorial-for-writing-a-playcanvas-editor-extension/11184
 
-## Uranus Scripts
-
-Uranus Scripts are a growing collection of useful open-source Playcanvas scripts to supercharge your content creation pipeline for your next game.
-
 ![uranus-games](uranus-games.jpg)
 
-Most of these scripts can be executed in editor and some of them provide editor only functionality.
-
-All scripts can be found bundled in the following file to be uploaded to any Playcanvas project:
-
-```
-uranus-editor/dist/sdk/uranus-scripts.js
-```
-
-If you would like to use specific scripts you can grab them individually from the following folder:
-
-```
-uranus-editor/src/scripts/
-```
-
-Note that some scripts have dependencies listed on the top of the source file, so make sure to grab them from the `_libraries` folder.
-
-## Uranus Demo Project
-
-An example Playcanvas project that has been developed using the Uranus Editor Scripting SDK has been made public here:
-
-[Pirron Island Forest Demo](https://playcanvas.com/project/689932/overview/pirron-island-forest-demo)
-
 ![pirron-island-forest-demo](pirron-island-forest-demo.jpg)
-
-You can use this project as a guide on how to use editor scripting and the provided uranus scripts.
-
-**Note that no model, texture, graphic or any other asset (excluding the scripts provided here) can be redistributed or used in other projects without permissions.**
 
 ## Contributing
 

@@ -994,6 +994,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
 
     // --- gather LOD entities or use the spawn entity for finding the base entity
     var lodEntities = [];
+    var lodAvailable = false;
     if (spawnEntity.model) {
       lodEntities.push(spawnEntity);
     } else {
@@ -1001,6 +1002,8 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
         var child = spawnEntity.children[i];
 
         if (!child.model) continue;
+
+        lodAvailable = true;
 
         // --- search for a LOD entity
         for (j = 0; j <= 3; j++) {
@@ -1050,6 +1053,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
           totalBuffer: undefined,
           totalMatrices: undefined,
           vertexBuffer: undefined,
+          lodAvailable: lodAvailable,
         };
 
         var densityReduce = this.densityReduce;
@@ -1236,8 +1240,6 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = async function (
       meshInstance.setInstancing(payload.vertexBuffer);
     }
   }
-
-  // console.log(this.entity.name, this.payloads);
 };
 
 UranusEditorEntitiesPaint.prototype.getMeshInstancePosOffset = function (offset, center, spawnPos, spawnScale) {
@@ -1451,7 +1453,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
           }
 
           // --- LOD culling
-          if (useLOD === true && visible > 0) {
+          if (useLOD === true && payload.lodAvailable === true && visible > 0) {
             var distanceFromCamera = this.distanceSq(cameraPos, matrixInstance.sphere.center);
 
             visible = this.checkActiveLOD(distanceFromCamera, lodDistance, lodIndex, lodLevelsEnabled, lodThreshold);

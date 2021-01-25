@@ -3892,7 +3892,7 @@ UranusEditorEntitiesPaint.prototype.clearInstances = function () {
 };
 UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
     return __awaiter(this, void 0, void 0, function () {
-        var spawnNames, spawnEntities, vec, vec1, vec2, vec3, quat, matrix, i, j, spawnIndex, spawnEntity, instances, lodEntities, child, lodIndex, lodEntity, spawnScale, meshInstanceIndex, meshInstance, meshRotation, meshSphereRadius, payload, densityReduce, activeDensity, instancesData, instance, newPosition, height, normal, result, angles, scale, finalPosition, newInstance, instance, scale, matrix, cellPos, cell, lodIndex, lodPayloads, payload, totalMatrices, totalMatrixIndex, startCellIndex, endCellIndex, cellGuid, matricesPerCell, j, m, cellMatrices, bufferArray, meshInstance, modelComponent, layerID, layer;
+        var spawnNames, spawnEntities, vec, vec1, vec2, vec3, quat, matrix, i, j, spawnIndex, spawnEntity, instances, lodEntities, lodAvailable, child, lodIndex, lodEntity, spawnScale, meshInstanceIndex, meshInstance, meshRotation, meshSphereRadius, payload, densityReduce, activeDensity, instancesData, instance, newPosition, height, normal, result, angles, scale, finalPosition, newInstance, instance, scale, matrix, cellPos, cell, lodIndex, lodPayloads, payload, totalMatrices, totalMatrixIndex, startCellIndex, endCellIndex, cellGuid, matricesPerCell, j, m, cellMatrices, bufferArray, meshInstance, modelComponent, layerID, layer;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -3928,6 +3928,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                         spawnEntity = this.spawnEntities[spawnIndex];
                         instances = this.filterInstances(spawnEntity, spawnIndex);
                         lodEntities = [];
+                        lodAvailable = false;
                         if (spawnEntity.model) {
                             lodEntities.push(spawnEntity);
                         }
@@ -3936,6 +3937,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                                 child = spawnEntity.children[i];
                                 if (!child.model)
                                     continue;
+                                lodAvailable = true;
                                 // --- search for a LOD entity
                                 for (j = 0; j <= 3; j++) {
                                     if (child.name.indexOf("_LOD" + j) > -1) {
@@ -3967,6 +3969,7 @@ UranusEditorEntitiesPaint.prototype.prepareHardwareInstancing = function () {
                                     totalBuffer: undefined,
                                     totalMatrices: undefined,
                                     vertexBuffer: undefined,
+                                    lodAvailable: lodAvailable,
                                 };
                                 densityReduce = this.densityReduce;
                                 activeDensity = densityReduce;
@@ -4275,7 +4278,7 @@ UranusEditorEntitiesPaint.prototype.cullHardwareInstancing = function () {
                         visible = frustum.containsSphere(matrixInstance.sphere);
                     }
                     // --- LOD culling
-                    if (useLOD === true && visible > 0) {
+                    if (useLOD === true && payload.lodAvailable === true && visible > 0) {
                         var distanceFromCamera = this.distanceSq(cameraPos, matrixInstance.sphere.center);
                         visible = this.checkActiveLOD(distanceFromCamera, lodDistance, lodIndex, lodLevelsEnabled, lodThreshold);
                     }

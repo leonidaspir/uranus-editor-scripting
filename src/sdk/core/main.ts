@@ -1,10 +1,10 @@
-import * as Modules from "./modules";
-import * as Assets from "./assets";
-import * as Scripts from "./scripts";
-import * as Entities from "./entities";
-import * as Systems from "./systems";
+import * as Modules from './modules';
+import * as Assets from './assets';
+import * as Scripts from './scripts';
+import * as Entities from './entities';
+import * as Systems from './systems';
 
-import Interface from "../interface";
+import Interface from '../interface';
 
 declare var editor: any;
 
@@ -26,9 +26,7 @@ export default class Editor {
   public loadEditorScriptAssets = Assets.loadEditorScriptAssets.bind(this);
 
   public batchExecuteScripts = Scripts.batchExecuteScripts.bind(this);
-  public prepareEditorScriptAttributes = Scripts.prepareEditorScriptAttributes.bind(
-    this
-  );
+  public prepareEditorScriptAttributes = Scripts.prepareEditorScriptAttributes.bind(this);
 
   public setEntityModelOutline = Entities.setEntityModelOutline.bind(this);
   public duplicateEntity = Entities.duplicateEntity.bind(this);
@@ -39,7 +37,7 @@ export default class Editor {
   public inEditor = Editor.inEditor;
 
   constructor() {
-    this.app = editor ? editor.call("viewport:app") : undefined;
+    this.app = editor ? editor.call('viewport:app') : undefined;
 
     this.setupOutline(this.app);
 
@@ -59,8 +57,7 @@ export default class Editor {
   static inEditor() {
     return (
       // @ts-ignore
-      window.editor !== undefined &&
-      window.location.href.indexOf("launch.playcanvas.com") === -1
+      window.editor !== undefined && window.location.href.indexOf('launch.playcanvas.com') === -1
     );
   }
 
@@ -72,16 +69,11 @@ export default class Editor {
       this.app.systems.rigidbody.onLibraryLoaded();
 
       // --- add existing hierarchy to simulation
-      const rigidbodies: any = this.app.root.findComponents("rigidbody");
+      const rigidbodies: any = this.app.root.findComponents('rigidbody');
 
       for (const rigidbody of rigidbodies) {
         if (rigidbody.entity.enabled === true && rigidbody.type === pc.BODYTYPE_STATIC && rigidbody.entity.collision) {
-
-          pc.RigidBodyComponent.prototype.constructor.call(
-            rigidbody,
-            rigidbody.system,
-            rigidbody.entity
-          );
+          pc.RigidBodyComponent.prototype.constructor.call(rigidbody, rigidbody.system, rigidbody.entity);
 
           const collision = rigidbody.entity.collision;
           collision.system.recreatePhysicalShapes(collision);
@@ -94,27 +86,17 @@ export default class Editor {
 
     this.appRunning = startImmediately;
 
-    this.interface.addUIButton(
-      "Parse Scripts",
-      "button",
-      this.appRunning,
-      () => {
-        this.batchExecuteScripts(false);
-      }
-    );
+    this.interface.addUIButton('Parse Scripts', 'button', this.appRunning, () => {
+      this.batchExecuteScripts(false);
+    });
 
-    this.interface.addUIButton(
-      "Update() Running",
-      "checkbox",
-      this.appRunning,
-      (state: boolean) => {
-        this.appRunning = state;
+    this.interface.addUIButton('Update() Running', 'checkbox', this.appRunning, (state: boolean) => {
+      this.appRunning = state;
 
-        if (state === true) {
-          tick();
-        }
+      if (state === true) {
+        tick();
       }
-    );
+    });
 
     // --- Make pc.Application update
     const update = (dt: number) => {
@@ -123,14 +105,14 @@ export default class Editor {
       app.frame++;
 
       // @ts-ignore
-      pc.ComponentSystem.update(dt);
+      app.systems.fire('update', dt);
       // @ts-ignore
-      pc.ComponentSystem.animationUpdate(dt);
+      app.systems.fire('animationUpdate', dt);
       // @ts-ignore
-      pc.ComponentSystem.postUpdate(dt);
+      app.systems.fire('postUpdate', dt);
 
       // fire update event
-      app.fire("update", dt);
+      app.fire('update', dt);
     };
 
     const tick = () => {
@@ -155,7 +137,7 @@ export default class Editor {
 
       // Submit a request to queue up a new animation frame immediately
       window.requestAnimationFrame(tick);
-      editor.call("viewport:render");
+      editor.call('viewport:render');
       update(dt);
 
       if (updatePhysics === true) {
@@ -166,7 +148,7 @@ export default class Editor {
 
     tick();
 
-    this.interface.logMessage("Started pc.App update loop");
+    this.interface.logMessage('Started pc.App update loop');
   }
 
   private setupOutline(app: pc.Application) {
@@ -178,13 +160,7 @@ export default class Editor {
     let targets: any = [];
     let textures: any = [];
 
-    const createSolidTex = function (
-      name: string,
-      r: number,
-      g: number,
-      b: number,
-      a: number
-    ) {
+    const createSolidTex = function (name: string, r: number, g: number, b: number, a: number) {
       var result = new pc.Texture(app.graphicsDevice, {
         width: 1,
         height: 1,
@@ -197,25 +173,20 @@ export default class Editor {
       return result;
     };
 
-    const whiteTex = createSolidTex("outline-tex", 255, 255, 255, 255);
+    const whiteTex = createSolidTex('outline-tex', 255, 255, 255, 255);
 
     const SHADER_OUTLINE = 24;
 
     // ### OVERLAY QUAD MATERIAL ###
     const chunks = pc.shaderChunks;
-    const shaderFinal = chunks.createShaderFromCode(
-      device,
-      chunks.fullscreenQuadVS,
-      chunks.outputTex2DPS,
-      "outputTex2D"
-    );
+    const shaderFinal = chunks.createShaderFromCode(device, chunks.fullscreenQuadVS, chunks.outputTex2DPS, 'outputTex2D');
 
     // ### OUTLINE EXTEND SHADER H ###
     const shaderBlurHPS =
-      " \
-        precision " +
+      ' \
+        precision ' +
       device.precision +
-      " float;\n \
+      ' float;\n \
         varying vec2 vUv0;\n \
         uniform float uOffset;\n \
         uniform sampler2D source;\n \
@@ -243,20 +214,15 @@ export default class Editor {
             diff = max(diff, length(firstTexel.rgb - pixel.rgb));\n \
             \n \
             gl_FragColor = vec4(texel.rgb, min(diff, 1.0));\n \
-        }\n";
-    const shaderBlurH = chunks.createShaderFromCode(
-      device,
-      chunks.fullscreenQuadVS,
-      shaderBlurHPS,
-      "editorOutlineH"
-    );
+        }\n';
+    const shaderBlurH = chunks.createShaderFromCode(device, chunks.fullscreenQuadVS, shaderBlurHPS, 'editorOutlineH');
 
     // ### OUTLINE EXTEND SHADER V ###
     const shaderBlurVPS =
-      " \
-        precision " +
+      ' \
+        precision ' +
       device.precision +
-      " float;\n \
+      ' float;\n \
         varying vec2 vUv0;\n \
         uniform float uOffset;\n \
         uniform sampler2D source;\n \
@@ -284,29 +250,21 @@ export default class Editor {
             diff = max(diff, length(firstTexel.rgb - pixel.rgb));\n \
             \n \
             gl_FragColor = vec4(texel.rgb, min(diff, 1.0));\n \
-        }\n";
-    const shaderBlurV = chunks.createShaderFromCode(
-      device,
-      chunks.fullscreenQuadVS,
-      shaderBlurVPS,
-      "editorOutlineV"
-    );
+        }\n';
+    const shaderBlurV = chunks.createShaderFromCode(device, chunks.fullscreenQuadVS, shaderBlurVPS, 'editorOutlineV');
 
     // ### SETUP THE LAYER ###
-    const viewportLayer = app.scene.layers.getLayerByName("UI");
+    const viewportLayer = app.scene.layers.getLayerByName('UI');
     viewportLayer.onPostRender = function () {
-      var uColorBuffer = device.scope.resolve("source");
+      var uColorBuffer = device.scope.resolve('source');
       uColorBuffer.setValue(textures[0]);
       device.setBlending(true);
-      device.setBlendFunction(
-        pc.BLENDMODE_SRC_ALPHA,
-        pc.BLENDMODE_ONE_MINUS_SRC_ALPHA
-      );
+      device.setBlendFunction(pc.BLENDMODE_SRC_ALPHA, pc.BLENDMODE_ONE_MINUS_SRC_ALPHA);
       pc.drawQuadWithShader(device, null, shaderFinal, null, null, true);
     };
 
     const outlineLayer = new pc.Layer({
-      name: "Outline",
+      name: 'Outline',
       opaqueSortMode: pc.SORTMODE_NONE,
       passThrough: true,
       overrideClear: true,
@@ -317,8 +275,8 @@ export default class Editor {
 
       onPostRender: function () {
         // extend pass X
-        var uOffset = device.scope.resolve("uOffset");
-        var uColorBuffer = device.scope.resolve("source");
+        var uOffset = device.scope.resolve('uOffset');
+        var uColorBuffer = device.scope.resolve('source');
         uOffset.setValue(1.0 / device.width / 2.0);
         uColorBuffer.setValue(textures[0]);
         pc.drawQuadWithShader(device, targets[1], shaderBlurH);
@@ -349,13 +307,9 @@ export default class Editor {
     };
 
     // --- render loop
-    app.on("update", (dt) => {
+    app.on('update', (dt) => {
       // ### INIT/RESIZE RENDERTARGETS ###
-      if (
-        targets[0] &&
-        (targets[0].width !== device.width ||
-          targets[1].height !== device.height)
-      ) {
+      if (targets[0] && (targets[0].width !== device.width || targets[1].height !== device.height)) {
         for (var i = 0; i < 2; i++) {
           targets[i].destroy();
           textures[i].destroy();
@@ -380,7 +334,7 @@ export default class Editor {
         }
       }
 
-      const camera = editor.call("camera:current").camera;
+      const camera = editor.call('camera:current').camera;
 
       if (this.renderOutline) {
         // ### RENDER COLORED MESHINSTANCES TO RT0 ###
@@ -412,16 +366,8 @@ export default class Editor {
             //if (! instance.command && instance.drawToDepth && instance.material && instance.layer === pc.LAYER_WORLD) {
             if (!instance.command && instance.material) {
               instance.onUpdateShader = onUpdateShaderOutline;
-              instance.setParameter(
-                "material_emissive",
-                selection.color,
-                1 << SHADER_OUTLINE
-              );
-              instance.setParameter(
-                "texture_emissiveMap",
-                whiteTex,
-                1 << SHADER_OUTLINE
-              );
+              instance.setParameter('material_emissive', selection.color, 1 << SHADER_OUTLINE);
+              instance.setParameter('texture_emissiveMap', whiteTex, 1 << SHADER_OUTLINE);
               meshInstances.push(instance);
             }
           }

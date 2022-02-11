@@ -1,3 +1,6 @@
+> ### :warning: This library has been deprecated in favor of a new editor scripting system that is in the works.
+> :construction_worker: It will receive no further updates, use at your own risk!
+
 # Uranus Editor Scripting for Playcanvas
 
 Uranus Editor Scripting is a framework that extends the scripting system of the [Playcanvas](https://playcanvas.com/) game engine to work inside the Playcanvas editor.
